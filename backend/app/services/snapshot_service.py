@@ -174,8 +174,29 @@ class SnapshotService:
         if not existing:
             db.add(snapshot)
 
-        db.commit()
-        db.refresh(snapshot)
+        try:
+            db.commit()
+            db.refresh(snapshot)
+        except Exception as e:
+            db.rollback()
+            # Try to fetch existing snapshot if insert failed due to unique constraint
+            existing = db.query(PortfolioSnapshot).filter(
+                PortfolioSnapshot.snapshot_date == snapshot_date
+            ).first()
+            if existing:
+                # Update existing snapshot
+                existing.total_value_cad = total_value_cad
+                existing.total_cost_cad = total_cost_cad
+                existing.unrealized_gain_cad = unrealized_gain_cad
+                existing.unrealized_gain_pct = unrealized_gain_pct
+                existing.holdings_count = holdings_with_value
+                existing.value_by_country = json.dumps(value_by_country_serializable)
+                db.commit()
+                db.refresh(existing)
+                snapshot = existing
+                logger.info(f"Updated existing snapshot for {snapshot_date}")
+            else:
+                raise e
 
         logger.info(f"Snapshot created: value={total_value_cad} CAD, gain={unrealized_gain_cad} CAD ({unrealized_gain_pct:.2f}%)")
 

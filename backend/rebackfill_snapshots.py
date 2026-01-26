@@ -77,6 +77,12 @@ def main():
 
         print(f"\nBackfill complete! Created {count} snapshots")
 
+        # Ensure clean session state before verification queries
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Show first few and last few snapshots for verification
         print("\n" + "=" * 60)
         print("VERIFICATION")

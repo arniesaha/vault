@@ -87,7 +87,7 @@ class CurrencyService:
     def get_exchange_rate_sync(cls, from_currency: str, to_currency: str, db: Session) -> Optional[Decimal]:
         """
         Synchronous version of get_exchange_rate.
-        Uses simple conversion rates as fallback.
+        Fetches from API if not cached, falls back to approximate rates on failure.
         """
         if from_currency == to_currency:
             return Decimal("1.0")
@@ -101,23 +101,60 @@ class CurrencyService:
         ).first()
 
         if cached_rate:
+            logger.info(f"Using cached exchange rate {from_currency} -> {to_currency}: {cached_rate.rate}")
             return cached_rate.rate
 
-        # Use approximate rates as fallback
-        # These are rough estimates - in production, use real API
+        # Fetch from API synchronously
+        try:
+            response = httpx.get(cls.API_URL.format(from_currency), timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+
+            if 'rates' in data and to_currency in data['rates']:
+                rate = Decimal(str(data['rates'][to_currency]))
+
+                # Cache in memory
+                cache_key = f"{from_currency}:{to_currency}"
+                cls._rate_cache[cache_key] = {
+                    'rate': rate,
+                    'timestamp': datetime.now()
+                }
+
+                # Cache in database (flush only, let caller commit)
+                db_rate = ExchangeRate(
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    rate=rate,
+                    date=today
+                )
+                db.add(db_rate)
+                try:
+                    db.flush()
+                except Exception:
+                    db.rollback()  # Rate might already exist, that's OK
+
+                logger.info(f"Fetched exchange rate {from_currency} -> {to_currency}: {rate}")
+                return rate
+            else:
+                logger.warning(f"Currency {to_currency} not found in API response")
+
+        except Exception as e:
+            logger.warning(f"API call failed for {from_currency} -> {to_currency}: {e}")
+
+        # Fallback to approximate rates if API fails
         approximate_rates = {
-            'USD:CAD': Decimal('1.35'),
-            'CAD:USD': Decimal('0.74'),
+            'USD:CAD': Decimal('1.37'),
+            'CAD:USD': Decimal('0.73'),
             'INR:CAD': Decimal('0.016'),
             'CAD:INR': Decimal('62.5'),
-            'USD:INR': Decimal('83.0'),
+            'USD:INR': Decimal('86.0'),
             'INR:USD': Decimal('0.012'),
         }
 
         key = f"{from_currency}:{to_currency}"
         if key in approximate_rates:
             rate = approximate_rates[key]
-            logger.warning(f"Using approximate rate for {key}: {rate}")
+            logger.warning(f"Using fallback rate for {key}: {rate}")
             return rate
 
         logger.error(f"No exchange rate available for {key}")
