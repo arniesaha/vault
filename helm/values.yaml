@@ -1,0 +1,41 @@
+# Portfolio Tracker Helm Values
+
+backend:
+  image:
+    repository: localhost:5000/portfolio-backend
+    tag: latest
+    pullPolicy: Always
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+
+frontend:
+  image:
+    repository: localhost:5000/portfolio-frontend
+    tag: latest
+    pullPolicy: Always
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      memory: 64Mi
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: portfolio.arnabsaha.com
+
+# Host path for SQLite database persistence
+persistence:
+  dataPath: /home/Arnab/clawd/projects/portfolio-tracker/data
+
+# Backend configuration
+config:
+  debug: "false"
+  logLevel: INFO
+  allowedOrigins: "http://localhost,http://portfolio.arnabsaha.com"
