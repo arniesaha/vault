@@ -4,7 +4,9 @@ from .config import settings
 from .database import init_db, SessionLocal
 from .routers import holdings, transactions, prices, analytics, snapshots, imports
 from .services.snapshot_service import SnapshotService
+from .services.price_service import PriceService
 from .models.holding import Holding
+from .models.price import CurrentPriceCache
 import logging
 import asyncio
 from datetime import datetime
@@ -52,34 +54,93 @@ app.include_router(snapshots.router, prefix="/api/v1")
 app.include_router(imports.router, prefix="/api/v1")
 
 
+def save_prices_to_cache(db, holdings, prices):
+    """Save fetched prices to the CurrentPriceCache table."""
+    now = datetime.now()
+    saved_count = 0
+
+    for holding in holdings:
+        price = prices.get(holding.symbol)
+        if price is None:
+            continue
+
+        try:
+            existing = db.query(CurrentPriceCache).filter(
+                CurrentPriceCache.symbol == holding.symbol,
+                CurrentPriceCache.exchange == holding.exchange
+            ).first()
+
+            if existing:
+                existing.price = price
+                existing.currency = holding.currency
+                existing.updated_at = now
+            else:
+                cache_entry = CurrentPriceCache(
+                    symbol=holding.symbol,
+                    exchange=holding.exchange,
+                    price=price,
+                    currency=holding.currency
+                )
+                db.add(cache_entry)
+            saved_count += 1
+        except Exception as e:
+            logger.error(f"Error saving price for {holding.symbol}: {e}")
+
+    try:
+        db.commit()
+        logger.info(f"Saved {saved_count} prices to DB cache")
+    except Exception as e:
+        logger.error(f"Failed to commit price cache: {e}")
+        db.rollback()
+
+
 async def load_initial_data():
-    """Background task to load initial price data"""
+    """Background task to load initial price data and populate cache"""
     global app_state
 
     db = SessionLocal()
     try:
-        holdings_count = db.query(Holding).filter(Holding.is_active == True).count()
+        holdings = db.query(Holding).filter(Holding.is_active == True).all()
+        holdings_count = len(holdings)
         app_state.holdings_count = holdings_count
 
         if holdings_count > 0:
             app_state.loading_message = f"Fetching prices for {holdings_count} holdings..."
-            logger.info(f"Found {holdings_count} active holdings, creating initial snapshot...")
+            logger.info(f"Found {holdings_count} active holdings, fetching prices...")
 
             try:
-                # Run the snapshot creation in a thread pool to not block
+                # Fetch prices using bulk method (faster than snapshot which fetches one by one)
                 loop = asyncio.get_event_loop()
-                snapshot = await loop.run_in_executor(
+                symbols = [(h.symbol, h.exchange) for h in holdings]
+
+                prices = await loop.run_in_executor(
                     None,
-                    SnapshotService.create_snapshot,
-                    db
+                    PriceService.get_prices_bulk,
+                    symbols
                 )
-                app_state.prices_loaded = holdings_count
-                logger.info(f"Initial snapshot created for {snapshot.snapshot_date}")
+
+                # Save to DB cache so fast=true queries work immediately
+                save_prices_to_cache(db, holdings, prices)
+                app_state.prices_loaded = len([p for p in prices.values() if p is not None])
+                logger.info(f"Initial price fetch complete: {app_state.prices_loaded}/{holdings_count} prices loaded")
+
+                # Also create snapshot (but don't wait for it to complete)
+                app_state.loading_message = "Creating portfolio snapshot..."
+                try:
+                    snapshot = await loop.run_in_executor(
+                        None,
+                        SnapshotService.create_snapshot,
+                        db
+                    )
+                    logger.info(f"Initial snapshot created for {snapshot.snapshot_date}")
+                except Exception as e:
+                    logger.warning(f"Could not create initial snapshot: {e}")
+
             except Exception as e:
-                logger.warning(f"Could not create initial snapshot: {e}")
+                logger.warning(f"Could not fetch initial prices: {e}")
                 app_state.error = str(e)
         else:
-            logger.info("No active holdings, skipping initial snapshot")
+            logger.info("No active holdings, skipping initial data load")
 
         app_state.is_loading = False
         app_state.loading_completed_at = datetime.now()

@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useUpdateHolding } from '../../hooks/useHoldings';
+import { useUpdateHolding, useAccountTypes } from '../../hooks/useHoldings';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
 
 export default function EditHoldingModal({ holding, isOpen, onClose }) {
   const updateHolding = useUpdateHolding();
+  const { data: accountTypesData } = useAccountTypes();
+  const accountTypes = accountTypesData?.account_types || [];
+
   const [formData, setFormData] = useState({
     company_name: '',
     quantity: '',
     avg_purchase_price: '',
+    account_type: '',
     first_purchase_date: '',
     notes: '',
   });
@@ -20,6 +24,7 @@ export default function EditHoldingModal({ holding, isOpen, onClose }) {
         company_name: holding.company_name || '',
         quantity: holding.quantity || '',
         avg_purchase_price: holding.avg_purchase_price || '',
+        account_type: holding.account_type || '',
         first_purchase_date: holding.first_purchase_date || '',
         notes: holding.notes || '',
       });
@@ -73,6 +78,28 @@ export default function EditHoldingModal({ holding, isOpen, onClose }) {
           onChange={handleChange}
           required
         />
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Account Type
+          </label>
+          <select
+            name="account_type"
+            value={formData.account_type}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">-- Select Account --</option>
+            {accountTypes.map((type) => (
+              <option key={type.code} value={type.code}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Assign to TFSA, RRSP, FHSA, or Non-Registered account
+          </p>
+        </div>
 
         <Input
           label="First Purchase Date"

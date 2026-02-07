@@ -1,8 +1,8 @@
 # Portfolio Tracker - Project Documentation
 
-**Last Updated:** January 24, 2026
-**Version:** 1.1 (Development)
-**Status:** Phase 2 Complete, Phase 3 In Progress
+**Last Updated:** February 6, 2026
+**Version:** 1.2 (Development)
+**Status:** Phase 3 Complete, Phase 4 In Progress
 
 ---
 
@@ -19,36 +19,40 @@ Personal web application to track stock investments across Canadian (TSX, TSX-V)
 
 ## Current Implementation Status
 
-### ✅ Complete (Phase 1 & 2)
+### ✅ Complete (Phase 1, 2 & 3)
 
 **Backend:**
 - Holdings CRUD API (`/api/v1/holdings`)
 - Transactions API with cost basis calculation (`/api/v1/transactions`)
 - Real-time price fetching via yfinance with 15-min caching
-- Portfolio analytics endpoints (summary, allocation, performance)
+- Portfolio analytics endpoints (summary, allocation, performance, realized gains, recommendations)
 - Currency conversion service (CAD, USD, INR)
-- Portfolio snapshot infrastructure
-- Database models: holdings, transactions, price_history, exchange_rates, portfolio_snapshots, ai_insights
+- Portfolio snapshot infrastructure with daily snapshots
+- Portfolio history API with chart data
+- Database models: holdings, transactions, price_history, exchange_rates, portfolio_snapshots, current_price_cache
+- **Import system** - TD Direct Investing and Wealthsimple CSV parsers
+- Price caching with request deduplication (prevents slow cold starts)
 
 **Frontend:**
 - Dashboard with summary cards, allocation charts, top holdings
+- Portfolio value history chart
 - Holdings management page (add/edit/delete)
-- Transactions page with filtering
-- React Query hooks for all data fetching
+- Transactions page with filtering and CSV import
+- News page with AI-generated insights
+- React Query hooks with progressive loading (cached → live)
 - Responsive design (desktop/tablet/mobile)
 
-### 🔄 In Progress (Phase 3)
+### 🔄 In Progress (Phase 4)
 
-- Portfolio value history chart (component exists, data pipeline incomplete)
-- Snapshot service integration testing
+- AI features expansion (news summarization improvements)
+- Additional broker import formats
 
-### ❌ Not Started (Phase 4 & 5)
+### ❌ Not Started (Phase 5)
 
-- AI features (news summarization, health check, rebalancing)
-- Import from investment platforms
+- Dividend tracking and income reporting
 - Export features (CSV/PDF)
 - Test coverage
-- Performance optimization
+- Zerodha/ICICI Direct import support
 
 ---
 
@@ -196,14 +200,14 @@ Holdings/Transactions created
 
 | Task | Status | Priority | Notes |
 |------|--------|----------|-------|
-| Design import API endpoint | 🔴 | High | POST /api/v1/import |
-| Create unified import schema | 🔴 | High | Pydantic models for validation |
-| Build Zerodha CSV parser | 🔴 | High | Most documented format |
-| Build TD Direct CSV parser | 🔴 | High | Canadian broker priority |
-| Build ICICI Direct parser | 🔴 | Medium | Excel/CSV handling |
-| Build Wealthsimple parser | 🔴 | Medium | Multiple export formats |
-| Frontend import UI | 🔴 | High | File upload + preview |
-| De-duplication logic | 🔴 | Medium | Prevent duplicate transactions |
+| Design import API endpoint | 🟢 | High | POST /api/v1/import/* |
+| Create unified import schema | 🟢 | High | Pydantic models for validation |
+| Build TD Direct CSV parser | 🟢 | High | Supports BUY/SELL, handles format variations |
+| Build Wealthsimple parser | 🟢 | High | Supports BUY/SELL transactions |
+| Frontend import UI | 🟢 | High | File upload + preview in Transactions page |
+| De-duplication logic | 🟢 | Medium | Prevents duplicate transactions on re-import |
+| Build Zerodha CSV parser | 🔴 | Medium | Indian broker support |
+| Build ICICI Direct parser | 🔴 | Low | Excel/CSV handling |
 | Zerodha API integration | 🔴 | Low | Optional real-time sync |
 
 ### Phase 4: AI Features
@@ -231,9 +235,100 @@ Holdings/Transactions created
 
 | Task | Status | Priority | Notes |
 |------|--------|----------|-------|
-| Verify transaction history working | 🔴 | High | User reported issues |
-| Test multi-currency calculations | 🔴 | Medium | CAD/USD/INR conversions |
+| Verify transaction history working | 🟢 | High | Fixed - FIFO calculation working |
+| Test multi-currency calculations | 🟢 | Medium | CAD/USD/INR conversions working |
+| Fix slow cold start loading | 🟢 | High | Added price cache + request deduplication |
 | Add request logging middleware | 🔴 | Low | Debugging aid |
+
+---
+
+## Upcoming Features (Roadmap)
+
+### ✅ Account Type Tracking (Implemented)
+
+Track holdings by registered account type for tax planning.
+
+**Supported Account Types:**
+- TFSA - Tax-Free Savings Account
+- RRSP - Registered Retirement Savings Plan
+- FHSA - First Home Savings Account
+- RESP - Registered Education Savings Plan
+- LIRA - Locked-In Retirement Account
+- RRIF - Registered Retirement Income Fund
+- NON_REG - Non-Registered (Taxable)
+- MARGIN - Margin Account
+
+**Features:**
+- Filter holdings by account type
+- Account breakdown analytics endpoint
+- Tax-advantaged vs taxable split
+- Import with account type assignment
+- Per-account performance tracking
+
+**API Endpoints:**
+- `GET /holdings/account-types` - List available account types
+- `GET /holdings?account_type=TFSA` - Filter holdings by account
+- `GET /analytics/account-breakdown` - Portfolio breakdown by account type
+
+---
+
+### 🔜 Dividend Tracking (Phase 5)
+
+Track dividend income separately from buy/sell transactions.
+
+**Backend:**
+- New `dividends` table: id, holding_id, symbol, amount, currency, ex_date, pay_date, source
+- Import dividend transactions from TD Direct (DIV, TXPDDV) and Wealthsimple (DIV)
+- API endpoints: GET/POST /api/v1/dividends
+- Dividend yield calculations per holding
+- Annual dividend income summary
+
+**Frontend:**
+- Dividend history page
+- Dividend income by month/year chart
+- Dividend yield display on holdings
+- Import dividends from CSV (same parsers, new transaction type)
+
+**Data Model:**
+```sql
+dividends (
+  id, holding_id, symbol, exchange,
+  amount, currency,
+  ex_date, pay_date, record_date,
+  dividend_type (CASH, DRIP, SPECIAL),
+  withholding_tax,
+  source (manual, td_direct, wealthsimple),
+  notes, created_at
+)
+```
+
+### 🔜 DRIP (Dividend Reinvestment) Support
+
+- Track reinvested dividends as both dividend income AND buy transactions
+- Properly calculate cost basis for DRIP shares
+- Link dividend to resulting buy transaction
+
+### 🔜 Tax Reporting
+
+- Capital gains summary by tax year
+- Dividend income summary by tax year
+- T5 slip data preparation (Canadian taxes)
+- ACB (Adjusted Cost Base) tracking for Canadian tax rules
+
+### 🔜 Performance Improvements
+
+- Background price refresh scheduler (every 15 min during market hours)
+- WebSocket for real-time price updates
+- Database query optimization for large portfolios
+
+### 🔜 Additional Import Sources
+
+| Platform | Country | Priority | Notes |
+|----------|---------|----------|-------|
+| Zerodha Kite | India | Medium | Console CSV export |
+| ICICI Direct | India | Low | Excel tradebook export |
+| Questrade | Canada | Low | CSV export |
+| Interactive Brokers | Multi | Low | Flex Query export |
 
 ---
 
@@ -434,21 +529,26 @@ portfolio-tracker/
 
 ## Known Issues
 
-1. **Transaction history may not be working** - User reported, needs investigation
-2. **Database not initialized** - Need to run backend once to create portfolio.db
-3. **Portfolio history chart** - Component ready but data pipeline incomplete
-4. **No tests** - Zero test coverage currently
+1. ~~**Transaction history may not be working**~~ - Fixed, FIFO calculation implemented
+2. ~~**Database not initialized**~~ - Auto-initializes on startup
+3. ~~**Portfolio history chart**~~ - Complete with snapshot data
+4. ~~**Slow cold start loading**~~ - Fixed with price cache + request deduplication
+5. **No tests** - Zero test coverage currently
+6. **Import limitations** - Only BUY/SELL transactions supported; dividends skipped (planned feature)
 
 ---
 
 ## Next Actions (Priority Order)
 
-1. Initialize database and verify all tables created
-2. Test existing API endpoints work correctly
-3. Investigate and fix transaction history issues
-4. Complete portfolio value history chart
-5. Build import system (start with Zerodha CSV parser)
-6. Add AI features
+1. ~~Initialize database and verify all tables created~~ ✅
+2. ~~Test existing API endpoints work correctly~~ ✅
+3. ~~Investigate and fix transaction history issues~~ ✅
+4. ~~Complete portfolio value history chart~~ ✅
+5. ~~Build import system (TD Direct, Wealthsimple)~~ ✅
+6. **Add dividend tracking** - Import DIV transactions, dividend income reporting
+7. **Add Zerodha CSV parser** - Indian broker support
+8. **Tax reporting features** - Capital gains and dividend summaries by tax year
+9. Add unit/integration tests
 
 ---
 

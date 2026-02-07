@@ -17,7 +17,7 @@ from ..schemas.snapshot import (
     PortfolioHistoryResponse
 )
 from ..services.snapshot_service import SnapshotService
-from ..routers.analytics import get_portfolio_summary
+from ..routers.analytics import calculate_portfolio_summary
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ async def get_portfolio_history(
 
         if not snapshots:
             # No snapshots exist yet, return empty history
-            summary = await get_portfolio_summary(db)
+            summary = await calculate_portfolio_summary(db)
             return PortfolioHistoryResponse(
                 snapshots=[],
                 start_date=date.today() - timedelta(days=days),
@@ -108,7 +108,7 @@ async def get_portfolio_history(
             )
 
         # Get current portfolio value
-        summary = await get_portfolio_summary(db)
+        summary = await calculate_portfolio_summary(db)
         current_value = Decimal(str(summary['total_value_cad']))
 
         # Calculate change from first snapshot

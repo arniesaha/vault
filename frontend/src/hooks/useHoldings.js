@@ -8,6 +8,14 @@ export const useHoldings = (filters = {}) => {
   });
 };
 
+export const useAccountTypes = () => {
+  return useQuery({
+    queryKey: ['accountTypes'],
+    queryFn: () => holdingsAPI.getAccountTypes().then(res => res.data),
+    staleTime: Infinity, // Account types don't change
+  });
+};
+
 export const useHolding = (id) => {
   return useQuery({
     queryKey: ['holding', id],
@@ -34,6 +42,7 @@ export const useUpdateHolding = () => {
     mutationFn: ({ id, data }) => holdingsAPI.update(id, data).then(res => res.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['holdings'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] }); // Refresh account breakdown
     },
   });
 };

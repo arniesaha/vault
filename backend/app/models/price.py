@@ -3,6 +3,26 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 
+class CurrentPriceCache(Base):
+    """
+    Fast-access cache for current prices.
+    Updated whenever prices are fetched from yfinance.
+    Enables instant page loads with slightly stale prices.
+    """
+    __tablename__ = "current_price_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(20), nullable=False)
+    exchange = Column(String(20), nullable=False)
+    price = Column(Numeric(15, 4), nullable=False)
+    currency = Column(String(3), nullable=False, default="USD")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('symbol', 'exchange', name='uix_cache_symbol_exchange'),
+    )
+
+
 class PriceHistory(Base):
     __tablename__ = "price_history"
 

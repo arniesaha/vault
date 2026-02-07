@@ -38,6 +38,29 @@ const EXCHANGE_STYLES = {
   BSE: 'bg-orange-50 text-orange-500 ring-orange-500/20',
 };
 
+// Account type badge colors
+const ACCOUNT_STYLES = {
+  TFSA: 'bg-green-100 text-green-700',
+  RRSP: 'bg-blue-100 text-blue-700',
+  FHSA: 'bg-purple-100 text-purple-700',
+  RESP: 'bg-amber-100 text-amber-700',
+  LIRA: 'bg-indigo-100 text-indigo-700',
+  RRIF: 'bg-sky-100 text-sky-700',
+  NON_REG: 'bg-red-100 text-red-700',
+  MARGIN: 'bg-orange-100 text-orange-700',
+};
+
+const ACCOUNT_NAMES = {
+  TFSA: 'TFSA',
+  RRSP: 'RRSP',
+  FHSA: 'FHSA',
+  RESP: 'RESP',
+  LIRA: 'LIRA',
+  RRIF: 'RRIF',
+  NON_REG: 'Non-Reg',
+  MARGIN: 'Margin',
+};
+
 export default function HoldingsTable({ holdings, onEdit, onDelete }) {
   if (!holdings || holdings.length === 0) {
     return (
@@ -58,9 +81,12 @@ export default function HoldingsTable({ holdings, onEdit, onDelete }) {
               Stock
             </th>
             <th className="px-6 py-4 text-left text-xs font-semibold text-secondary-600 uppercase tracking-wider">
-              Exchange
+              Account
             </th>
             <th className="px-6 py-4 text-left text-xs font-semibold text-secondary-600 uppercase tracking-wider">
+              Exchange
+            </th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-secondary-600 uppercase tracking-wider hidden lg:table-cell">
               Country
             </th>
             <th className="px-6 py-4 text-right text-xs font-semibold text-secondary-600 uppercase tracking-wider">
@@ -69,7 +95,7 @@ export default function HoldingsTable({ holdings, onEdit, onDelete }) {
             <th className="px-6 py-4 text-right text-xs font-semibold text-secondary-600 uppercase tracking-wider">
               Avg Cost
             </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold text-secondary-600 uppercase tracking-wider">
+            <th className="px-6 py-4 text-left text-xs font-semibold text-secondary-600 uppercase tracking-wider hidden md:table-cell">
               First Purchase
             </th>
             <th className="px-6 py-4 text-right text-xs font-semibold text-secondary-600 uppercase tracking-wider">
@@ -92,11 +118,20 @@ export default function HoldingsTable({ holdings, onEdit, onDelete }) {
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
+                {holding.account_type ? (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ACCOUNT_STYLES[holding.account_type] || 'bg-secondary-100 text-secondary-700'}`}>
+                    {ACCOUNT_NAMES[holding.account_type] || holding.account_type}
+                  </span>
+                ) : (
+                  <span className="text-xs text-secondary-400 italic">Not set</span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ring-1 ring-inset ${EXCHANGE_STYLES[holding.exchange] || 'bg-secondary-50 text-secondary-600 ring-secondary-500/20'}`}>
                   {holding.exchange}
                 </span>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${COUNTRY_STYLES[holding.country] || 'bg-secondary-100 text-secondary-700'}`}>
                   {holding.country}
                 </span>
@@ -107,7 +142,7 @@ export default function HoldingsTable({ holdings, onEdit, onDelete }) {
               <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-secondary-900 tabular-nums">
                 {formatCurrency(holding.avg_purchase_price, holding.currency)}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-500">
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-500 hidden md:table-cell">
                 {formatDate(holding.first_purchase_date)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right">

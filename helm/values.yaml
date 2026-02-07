@@ -28,7 +28,7 @@ service:
 
 ingress:
   enabled: true
-  host: portfolio.arnabsaha.com
+  host: stocks.arnabsaha.com
 
 # Host path for SQLite database persistence
 persistence:

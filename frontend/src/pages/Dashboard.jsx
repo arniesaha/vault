@@ -3,6 +3,7 @@ import LoadingSpinner, { SkeletonCard, SkeletonChart } from '../components/commo
 import ErrorMessage from '../components/common/ErrorMessage';
 import SummaryCards from '../components/dashboard/SummaryCards';
 import AllocationCharts from '../components/dashboard/AllocationCharts';
+import AccountBreakdownChart from '../components/dashboard/AccountBreakdownChart';
 import TopHoldings from '../components/dashboard/TopHoldings';
 import PortfolioValueChart from '../components/dashboard/PortfolioValueChart';
 import { usePortfolioSummary, useAllocation, usePerformance, useRefreshPrices, useAppStatus, useRealizedGains } from '../hooks/usePortfolio';
@@ -28,6 +29,37 @@ const RefreshIcon = ({ className }) => (
   </svg>
 );
 
+// Subtle refresh indicator shown when updating prices in background
+function RefreshIndicator({ source }) {
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full">
+      <RefreshIcon className="w-4 h-4 animate-spin" />
+      <span>Updating prices...</span>
+    </div>
+  );
+}
+
+// Data source badge
+function SourceBadge({ source, isRefreshing }) {
+  if (isRefreshing) {
+    return <RefreshIndicator />;
+  }
+  
+  if (source === 'cache') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 text-yellow-700 text-xs rounded">
+        📦 Cached prices
+      </span>
+    );
+  }
+  
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded">
+      ✓ Live prices
+    </span>
+  );
+}
+
 function InitializingState() {
   return (
     <div className="container-app py-8">
@@ -36,29 +68,28 @@ function InitializingState() {
         <p className="text-secondary-500 mt-1">Overview of your investment portfolio</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-soft border border-secondary-100 p-8 sm:p-12">
-        <div className="flex flex-col items-center text-center">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-          </div>
-          <h2 className="text-xl font-semibold text-secondary-900 mb-2">
-            Loading Portfolio Data
-          </h2>
-          <p className="text-secondary-500 max-w-md">
-            Fetching latest stock prices and calculating portfolio values. This may take a moment on first load...
-          </p>
-          <div className="mt-6 flex items-center gap-2 text-sm text-secondary-400">
+      {/* Show skeleton UI immediately instead of blocking spinner */}
+      <div className="space-y-6 sm:space-y-8">
+        {/* Skeleton Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+        
+        {/* Skeleton Chart */}
+        <div className="bg-white rounded-xl shadow-soft border border-secondary-100 p-6">
+          <div className="h-4 w-32 bg-secondary-200 rounded animate-pulse mb-4" />
+          <div className="h-64 bg-secondary-100 rounded animate-pulse" />
+        </div>
+        
+        {/* Loading message */}
+        <div className="text-center py-4">
+          <div className="inline-flex items-center gap-2 text-secondary-500">
             <RefreshIcon className="w-4 h-4 animate-spin" />
-            <span>Connecting to market data...</span>
+            <span>Loading portfolio data...</span>
           </div>
         </div>
-      </div>
-
-      {/* Skeleton cards below */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {[1, 2, 3, 4].map((i) => (
-          <SkeletonCard key={i} />
-        ))}
       </div>
     </div>
   );
@@ -68,27 +99,39 @@ export default function Dashboard() {
   const {
     data: summary,
     isLoading: summaryLoading,
+    isRefreshing: summaryRefreshing,
     isError: summaryError,
     isFetching: summaryFetching,
     failureCount,
-    refetch
+    refetch,
+    source: summarySource,
   } = usePortfolioSummary();
-  const { data: allocation, isLoading: allocationLoading } = useAllocation();
-  const { data: performance, isLoading: performanceLoading } = usePerformance();
+  
+  const { 
+    data: allocation, 
+    isLoading: allocationLoading,
+    isRefreshing: allocationRefreshing,
+  } = useAllocation();
+  
+  const { 
+    data: performance, 
+    isLoading: performanceLoading 
+  } = usePerformance();
+  
   const { data: realizedGains, isLoading: realizedGainsLoading } = useRealizedGains();
   const refreshPrices = useRefreshPrices();
   const { data: appStatus } = useAppStatus();
 
-  // Check if backend is still loading initial data
-  const backendLoading = appStatus?.is_loading && !appStatus?.ready;
+  // Check if any data is refreshing in background
+  const isRefreshing = summaryRefreshing || allocationRefreshing;
 
-  // Show initializing state when loading, retrying, or backend is still loading
-  if (summaryLoading || (summaryFetching && !summary) || backendLoading) {
+  // Show skeleton only if we have NO data at all (not even cached)
+  if (summaryLoading && !summary) {
     return <InitializingState />;
   }
 
-  // Only show error after all retries have failed, backend is ready, and we have no data
-  if (summaryError && !summary && !backendLoading) {
+  // Only show error after all retries have failed AND we have no data
+  if (summaryError && !summary) {
     return (
       <div className="container-app py-8">
         <div className="mb-8">
@@ -114,9 +157,16 @@ export default function Dashboard() {
   return (
     <div className="container-app py-6 sm:py-8">
       {/* Page Header */}
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">Dashboard</h1>
-        <p className="text-secondary-500 mt-1">Overview of your investment portfolio</p>
+      <div className="mb-6 sm:mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">Dashboard</h1>
+          <p className="text-secondary-500 mt-1">Overview of your investment portfolio</p>
+        </div>
+        
+        {/* Price source indicator */}
+        {hasHoldings && (
+          <SourceBadge source={summarySource} isRefreshing={isRefreshing} />
+        )}
       </div>
 
       {!hasHoldings ? (
@@ -136,7 +186,11 @@ export default function Dashboard() {
         <div className="space-y-6 sm:space-y-8">
           {/* Summary Cards */}
           <section>
-            <SummaryCards summary={summary} realizedGains={realizedGains} isLoading={summaryLoading || realizedGainsLoading} />
+            <SummaryCards 
+              summary={summary} 
+              realizedGains={realizedGains} 
+              isLoading={summaryLoading || realizedGainsLoading} 
+            />
           </section>
 
           {/* Portfolio Value Chart */}
@@ -146,12 +200,17 @@ export default function Dashboard() {
 
           {/* Allocation Charts */}
           <section>
-            <AllocationCharts allocation={allocation} isLoading={allocationLoading} />
+            <AllocationCharts allocation={allocation} isLoading={allocationLoading && !allocation} />
+          </section>
+
+          {/* Account Breakdown Chart */}
+          <section>
+            <AccountBreakdownChart />
           </section>
 
           {/* Top Holdings Table */}
           <section>
-            <TopHoldings holdings={allocation?.top_holdings} isLoading={allocationLoading} />
+            <TopHoldings holdings={allocation?.top_holdings} isLoading={allocationLoading && !allocation} />
           </section>
         </div>
       )}

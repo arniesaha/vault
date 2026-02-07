@@ -3,6 +3,19 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 
+# Canadian registered account types
+ACCOUNT_TYPES = {
+    "TFSA": "Tax-Free Savings Account",
+    "RRSP": "Registered Retirement Savings Plan",
+    "FHSA": "First Home Savings Account",
+    "RESP": "Registered Education Savings Plan",
+    "LIRA": "Locked-In Retirement Account",
+    "RRIF": "Registered Retirement Income Fund",
+    "NON_REG": "Non-Registered (Taxable)",
+    "MARGIN": "Margin Account",
+}
+
+
 class Holding(Base):
     __tablename__ = "holdings"
 
@@ -14,6 +27,7 @@ class Holding(Base):
     quantity = Column(Numeric(15, 4), nullable=False)
     avg_purchase_price = Column(Numeric(15, 4), nullable=False)
     currency = Column(String(3), default="CAD")
+    account_type = Column(String(20), nullable=True, index=True)  # TFSA, RRSP, FHSA, NON_REG, etc.
     first_purchase_date = Column(Date)
     notes = Column(Text)
     is_active = Column(Boolean, default=True, index=True)

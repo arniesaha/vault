@@ -1,20 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from ..database import get_db
-from ..models.holding import Holding
+from ..models.holding import Holding, ACCOUNT_TYPES
 from ..schemas.holding import HoldingCreate, HoldingUpdate, HoldingResponse
 from datetime import datetime
 
 router = APIRouter(prefix="/holdings", tags=["holdings"])
 
 
+@router.get("/account-types")
+def get_account_types():
+    """Get list of available account types"""
+    return {
+        "account_types": [
+            {"code": code, "name": name}
+            for code, name in ACCOUNT_TYPES.items()
+        ]
+    }
+
+
 @router.get("/", response_model=List[HoldingResponse])
 def get_holdings(
     skip: int = 0,
     limit: int = 100,
-    country: str = None,
-    exchange: str = None,
+    country: Optional[str] = Query(None, description="Filter by country code (CA, US, IN)"),
+    exchange: Optional[str] = Query(None, description="Filter by exchange (TSX, NYSE, etc.)"),
+    account_type: Optional[str] = Query(None, description="Filter by account type (TFSA, RRSP, FHSA, NON_REG)"),
     db: Session = Depends(get_db)
 ):
     """Get all active holdings with optional filters"""
@@ -24,6 +36,8 @@ def get_holdings(
         query = query.filter(Holding.country == country)
     if exchange:
         query = query.filter(Holding.exchange == exchange)
+    if account_type:
+        query = query.filter(Holding.account_type == account_type)
 
     holdings = query.offset(skip).limit(limit).all()
     return holdings

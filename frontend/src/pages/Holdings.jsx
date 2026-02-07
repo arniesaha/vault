@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useHoldings, useDeleteHolding } from '../hooks/useHoldings';
+import { useHoldings, useDeleteHolding, useAccountTypes } from '../hooks/useHoldings';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import LoadingSpinner, { SkeletonTable } from '../components/common/LoadingSpinner';
@@ -22,12 +22,24 @@ const HoldingsIcon = ({ className }) => (
   </svg>
 );
 
+const FilterIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+  </svg>
+);
+
 export default function Holdings() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingHolding, setEditingHolding] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const { data: holdings, isLoading, isError, error, refetch } = useHoldings();
+  const [accountTypeFilter, setAccountTypeFilter] = useState('');
+
+  const filters = accountTypeFilter ? { account_type: accountTypeFilter } : {};
+  const { data: holdings, isLoading, isError, error, refetch } = useHoldings(filters);
+  const { data: accountTypesData } = useAccountTypes();
   const deleteHolding = useDeleteHolding();
+
+  const accountTypes = accountTypesData?.account_types || [];
 
   const handleDelete = async () => {
     if (!deletingId) return;
@@ -47,9 +59,28 @@ export default function Holdings() {
           <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">Holdings</h1>
           <p className="text-secondary-500 mt-1">Manage your investment portfolio</p>
         </div>
-        <Button icon={PlusIcon} onClick={() => setShowAddForm(true)}>
-          Add Holding
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Account Type Filter */}
+          <div className="flex items-center gap-2">
+            <FilterIcon className="w-4 h-4 text-secondary-400" />
+            <select
+              value={accountTypeFilter}
+              onChange={(e) => setAccountTypeFilter(e.target.value)}
+              className="text-sm border border-secondary-200 rounded-lg px-3 py-2 bg-white text-secondary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">All Accounts</option>
+              {accountTypes.map((type) => (
+                <option key={type.code} value={type.code}>
+                  {type.name}
+                </option>
+              ))}
+              <option value="UNASSIGNED">Unassigned</option>
+            </select>
+          </div>
+          <Button icon={PlusIcon} onClick={() => setShowAddForm(true)}>
+            Add Holding
+          </Button>
+        </div>
       </div>
 
       {/* Holdings Card */}

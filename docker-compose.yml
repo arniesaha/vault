@@ -16,7 +16,7 @@ services:
       # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # - NEWS_API_KEY=${NEWS_API_KEY}
     volumes:
-      - portfolio-data:/app/data
+      - ./data:/app/data
     networks:
       - portfolio-network
     healthcheck:

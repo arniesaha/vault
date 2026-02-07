@@ -213,6 +213,7 @@ async def upload_bulk_import(
         holdings_created=0,
         holdings_updated=0,
         duplicates_skipped=0,
+        account_types_updated=0,
         errors=[],
         warnings=[],
     )
@@ -235,6 +236,7 @@ async def upload_bulk_import(
             total_result.holdings_created += result.holdings_created
             total_result.holdings_updated += result.holdings_updated
             total_result.duplicates_skipped += result.duplicates_skipped
+            total_result.account_types_updated += result.account_types_updated
             total_result.errors.extend([f"{file.filename}: {e}" for e in result.errors])
             total_result.warnings.extend([f"{file.filename}: {w}" for w in result.warnings])
 

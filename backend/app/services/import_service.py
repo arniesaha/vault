@@ -95,8 +95,8 @@ class ImportService:
                 description="Import from TD Direct Investing activity CSV export",
                 file_types=["csv"],
                 date_format="DD MMM YYYY (e.g., 05 Jan 2026)",
-                example_fields=["Trade Date", "Settle Date", "Description", "Action", "Quantity", "Price", "Commission", "Net Amount", "Currency"],
-                notes="Export from Accounts > Activity. Only BUY and SELL transactions are imported.",
+                example_fields=["Trade Date", "Settle Date", "Description", "Action", "Quantity", "Price", "Commission", "Net Amount", "(Security Type)", "(Currency)"],
+                notes="Export from Accounts > Activity. Only BUY and SELL transactions are imported. Dividends (DIV, TXPDDV) and other actions are skipped.",
             ),
             SupportedFormat(
                 platform=ImportPlatform.WEALTHSIMPLE.value,
@@ -104,8 +104,8 @@ class ImportService:
                 description="Import from Wealthsimple monthly statement CSV",
                 file_types=["csv"],
                 date_format="YYYY-MM-DD",
-                example_fields=["date", "transaction", "description", "amount"],
-                notes="Export using Wealthsimple Trade Enhancer extension or Wealthica.",
+                example_fields=["date", "transaction", "description", "amount", "(balance)", "(currency)"],
+                notes="Export using Wealthsimple Trade Enhancer extension or Wealthica. Only BUY and SELL transactions are imported. Dividends (DIV), deposits, and withdrawals are skipped.",
             ),
         ]
 
@@ -125,14 +125,15 @@ class ImportService:
         """
         Parse TD Direct Investing CSV export.
 
-        Format:
+        Format (may vary):
         Line 1: As of Date,2026-01-24 21:59:31
         Line 2: Account,TD Direct Investing - 71XW74J
-        Line 3: (empty)
-        Line 4: Trade Date,Settle Date,Description,Action,Quantity,Price,Commission,Net Amount,Security Type,Currency
+        Line 3: (empty or just comma)
+        Line 4: Trade Date,Settle Date,Description,Action,Quantity,Price,Commission,Net Amount[,Security Type,Currency]
         Line 5+: Data rows
 
         Actions to import: BUY, SELL
+        Note: Other actions like TXPDDV (dividends), DIV, WHTX02 are skipped.
         """
         transactions = []
         warnings = []
@@ -140,25 +141,32 @@ class ImportService:
         lines = content.strip().split('\n')
 
         # Skip header lines and find the actual CSV data
+        # Handle both "Trade Date," and potential whitespace
         data_start = 0
         for i, line in enumerate(lines):
-            if line.startswith("Trade Date,"):
+            stripped = line.strip()
+            if stripped.startswith("Trade Date,") or stripped.startswith("Trade Date\t"):
                 data_start = i
                 break
 
         if data_start == 0:
-            warnings.append("Could not find CSV header row")
+            warnings.append("Could not find CSV header row. Expected header starting with 'Trade Date,'")
             return transactions, warnings
 
         # Parse CSV starting from header row
         csv_content = '\n'.join(lines[data_start:])
         reader = csv.DictReader(io.StringIO(csv_content))
 
+        # Track skipped actions for better user feedback
+        skipped_actions = {}
+
         for row in reader:
             action = row.get('Action', '').strip()
 
             # Only process BUY and SELL transactions
             if action not in ('BUY', 'SELL'):
+                # Track what we're skipping
+                skipped_actions[action] = skipped_actions.get(action, 0) + 1
                 continue
 
             try:
@@ -227,6 +235,12 @@ class ImportService:
                 warnings.append(f"Error parsing row: {e}")
                 continue
 
+        # Add helpful warning if no BUY/SELL transactions found but other actions exist
+        if not transactions and skipped_actions:
+            action_summary = ", ".join([f"{action}: {count}" for action, count in skipped_actions.items()])
+            warnings.append(f"No BUY/SELL transactions found. Skipped actions: {action_summary}")
+            warnings.append("Only BUY and SELL transactions can be imported. Dividends (DIV, TXPDDV) and other actions are not supported.")
+
         return transactions, warnings
 
     @staticmethod
@@ -235,7 +249,7 @@ class ImportService:
         Parse Wealthsimple monthly statement CSV.
 
         Format:
-        date,transaction,description,amount
+        date,transaction,description,amount[,balance,currency]
         2025-03-12,BUY,"NVDA - NVIDIA Corp.: Bought 5.0000 shares (executed at 2025-03-12), FX Rate: 1.4644",-1500.00
         """
         transactions = []
@@ -243,9 +257,14 @@ class ImportService:
 
         reader = csv.DictReader(io.StringIO(content))
 
+        # Track skipped transaction types for better user feedback
+        skipped_types = {}
+
         for row in reader:
             trans_type = row.get('transaction', '').strip()
             if trans_type not in ('BUY', 'SELL'):
+                # Track what we're skipping
+                skipped_types[trans_type] = skipped_types.get(trans_type, 0) + 1
                 continue
 
             try:
@@ -306,6 +325,12 @@ class ImportService:
             except Exception as e:
                 warnings.append(f"Error parsing row: {e}")
                 continue
+
+        # Add helpful warning if no BUY/SELL transactions found but other types exist
+        if not transactions and skipped_types:
+            type_summary = ", ".join([f"{t}: {count}" for t, count in skipped_types.items()])
+            warnings.append(f"No BUY/SELL transactions found. Skipped transaction types: {type_summary}")
+            warnings.append("Only BUY and SELL transactions can be imported. Dividends (DIV), deposits, and withdrawals are not supported.")
 
         return transactions, warnings
 
@@ -472,10 +497,23 @@ class ImportService:
         # Get existing holdings
         existing_holdings = {h.symbol: h for h in db.query(Holding).all()}
 
+        # Track which holdings have had their account_type updated
+        account_types_updated = set()
+
         for t in transactions:
             # Check for duplicates
             if skip_duplicates and t.dedup_key in existing_dedup_keys:
                 duplicates_skipped += 1
+
+                # Even for duplicates, update account_type if provided and different
+                if t.account_type and t.symbol in existing_holdings:
+                    holding = existing_holdings[t.symbol]
+                    if holding.account_type != t.account_type and t.symbol not in account_types_updated:
+                        old_type = holding.account_type or "UNASSIGNED"
+                        holding.account_type = t.account_type
+                        account_types_updated.add(t.symbol)
+                        warnings.append(f"Updated {t.symbol} account type: {old_type} → {t.account_type}")
+
                 continue
 
             try:
@@ -487,6 +525,14 @@ class ImportService:
                         if not holding.is_active:
                             holding.is_active = True
                             holdings_updated += 1
+
+                        # Update account_type if provided and different
+                        if t.account_type and holding.account_type != t.account_type and t.symbol not in account_types_updated:
+                            old_type = holding.account_type or "UNASSIGNED"
+                            holding.account_type = t.account_type
+                            account_types_updated.add(t.symbol)
+                            warnings.append(f"Updated {t.symbol} account type: {old_type} → {t.account_type}")
+
                         holdings_map[t.symbol] = holding
                     else:
                         # Create new holding with zero quantity (will be updated by transaction)
@@ -498,6 +544,7 @@ class ImportService:
                             quantity=Decimal("0"),
                             avg_purchase_price=Decimal("0"),
                             currency=t.currency,
+                            account_type=t.account_type,
                             first_purchase_date=t.date,
                             is_active=True,
                         )
@@ -563,6 +610,7 @@ class ImportService:
                 holdings_created=0,
                 holdings_updated=0,
                 duplicates_skipped=duplicates_skipped,
+                account_types_updated=0,
                 errors=[f"Database error: {str(e)}"],
                 warnings=warnings,
             )
@@ -573,6 +621,7 @@ class ImportService:
             holdings_created=holdings_created,
             holdings_updated=holdings_updated,
             duplicates_skipped=duplicates_skipped,
+            account_types_updated=len(account_types_updated),
             errors=errors,
             warnings=warnings,
         )

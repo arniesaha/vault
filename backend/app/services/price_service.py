@@ -219,6 +219,100 @@ class PriceService:
         return results
 
     @classmethod
+    def get_prices_with_change_bulk(cls, symbols: List[tuple]) -> Dict[str, Dict]:
+        """
+        Get prices with daily change data for multiple symbols.
+
+        Fetches 2 days of data for speed; enough for previous close on most days.
+        Falls back gracefully if we don't have 2 days of data.
+
+        Args:
+            symbols: List of (symbol, exchange) tuples
+        Returns:
+            Dictionary mapping symbol to {price, previous_close, change, change_pct}
+        """
+        results = {}
+
+        if not symbols:
+            return results
+
+        # Build yfinance symbol list
+        symbol_map = {}  # yf_symbol -> (symbol, exchange)
+        yf_symbols = []
+        for symbol, exchange in symbols:
+            yf_symbol = cls._get_yfinance_symbol(symbol, exchange)
+            symbol_map[yf_symbol] = (symbol, exchange)
+            yf_symbols.append(yf_symbol)
+
+        logger.info(f"Fetching prices with change for {len(yf_symbols)} symbols")
+
+        try:
+            # Fetch 2 days for speed (enough for previous close on most days)
+            data = yf.download(
+                yf_symbols,
+                period='2d',
+                progress=False,
+                threads=True,
+                ignore_tz=True,
+                auto_adjust=True
+            )
+            
+            if data.empty:
+                logger.warning("Download returned empty data")
+                return results
+            
+            for yf_symbol, (symbol, exchange) in symbol_map.items():
+                try:
+                    # Handle single vs multiple symbol response format
+                    if len(yf_symbols) == 1:
+                        close_data = data['Close']
+                    else:
+                        if ('Close', yf_symbol) not in data.columns:
+                            logger.warning(f"No data for {symbol}")
+                            continue
+                        close_data = data[('Close', yf_symbol)]
+                    
+                    # Remove NaN values
+                    close_data = close_data.dropna()
+                    
+                    if len(close_data) < 2:
+                        # Not enough data for change calculation
+                        if len(close_data) == 1:
+                            price = Decimal(str(float(close_data.iloc[-1])))
+                            results[symbol] = {
+                                'price': price,
+                                'previous_close': None,
+                                'change': Decimal('0'),
+                                'change_pct': Decimal('0')
+                            }
+                        continue
+                    
+                    # Current price is last value, previous close is second-to-last
+                    current_price = Decimal(str(float(close_data.iloc[-1])))
+                    previous_close = Decimal(str(float(close_data.iloc[-2])))
+                    
+                    change = current_price - previous_close
+                    change_pct = (change / previous_close * 100) if previous_close else Decimal('0')
+                    
+                    results[symbol] = {
+                        'price': current_price,
+                        'previous_close': previous_close,
+                        'change': change,
+                        'change_pct': change_pct
+                    }
+                    
+                    logger.debug(f"{symbol}: {current_price} (prev: {previous_close}, chg: {change_pct:.2f}%)")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing {symbol}: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"Bulk download with change failed: {e}")
+        
+        return results
+
+    @classmethod
     def get_historical_prices(cls, symbol: str, exchange: str, days: int = 30) -> List[Dict]:
         """
         Get historical prices for a symbol.

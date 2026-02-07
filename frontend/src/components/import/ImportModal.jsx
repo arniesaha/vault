@@ -28,11 +28,14 @@ const platforms = [
 
 const accountTypes = [
   { value: '', label: 'Select account type (optional)' },
-  { value: 'TFSA', label: 'TFSA' },
-  { value: 'RRSP', label: 'RRSP' },
-  { value: 'FHSA', label: 'FHSA' },
-  { value: 'Non-registered', label: 'Non-registered' },
-  { value: 'Margin', label: 'Margin' },
+  { value: 'TFSA', label: 'TFSA - Tax-Free Savings Account' },
+  { value: 'RRSP', label: 'RRSP - Registered Retirement Savings Plan' },
+  { value: 'FHSA', label: 'FHSA - First Home Savings Account' },
+  { value: 'RESP', label: 'RESP - Registered Education Savings Plan' },
+  { value: 'LIRA', label: 'LIRA - Locked-In Retirement Account' },
+  { value: 'RRIF', label: 'RRIF - Registered Retirement Income Fund' },
+  { value: 'NON_REG', label: 'Non-Registered (Taxable)' },
+  { value: 'MARGIN', label: 'Margin Account' },
 ];
 
 export default function ImportModal({ isOpen, onClose }) {

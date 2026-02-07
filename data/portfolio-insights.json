@@ -1,0 +1,25 @@
+{
+  "insights": [
+    {
+      "title": "TSM & AVGO carrying strong gains",
+      "content": "Your semiconductor positions (TSM +59%, AVGO +53%) have significantly outperformed. Together they represent meaningful unrealized gains. Consider whether you want to lock in some profits or if you're comfortable letting these ride given AI/chip demand tailwinds.",
+      "generated_at": "2026-01-30T09:47:00"
+    },
+    {
+      "title": "Canadian-heavy but well-diversified",
+      "content": "Your portfolio is 56% Canadian, 44% US. While this creates some home bias, your ETF choices (XEQT, VDY, XEF) provide underlying global exposure. The geographic split looks intentional rather than accidental.",
+      "generated_at": "2026-01-30T09:47:00"
+    },
+    {
+      "title": "XEQT concentration worth monitoring",
+      "content": "XEQT at 20.6% is your largest position. This is fine for a core ETF, but keep an eye on it as you add funds — you may want to diversify new contributions to other holdings to maintain balance.",
+      "generated_at": "2026-01-30T09:47:00"
+    }
+  ],
+  "generated_at": "2026-01-30T09:47:00",
+  "portfolio_snapshot": {
+    "total_value": 101786,
+    "total_gain_pct": 10.5,
+    "holdings_count": 21
+  }
+}

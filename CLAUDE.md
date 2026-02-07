@@ -66,15 +66,25 @@ portfolio-tracker/
 | `GET /transactions` | List all transactions |
 | `POST /transactions` | Create transaction |
 | `GET /prices/current` | Current prices for all holdings |
+| `GET /prices/cached` | Cached prices (instant, no API call) |
 | `POST /prices/refresh` | Force refresh all prices |
-| `GET /portfolio/summary` | Portfolio overview |
+| `GET /analytics/portfolio/summary` | Portfolio overview |
 | `GET /analytics/allocation` | Geographic & exchange breakdown |
+| `GET /analytics/realized-gains` | Realized gains with FIFO calculation |
+| `GET /analytics/recommendations` | Portfolio health recommendations |
+| `GET /analytics/account-breakdown` | Breakdown by account type (TFSA, RRSP, etc.) |
+| `GET /holdings/account-types` | List available account types |
+| `POST /import/preview` | Preview CSV import |
+| `POST /import/transactions` | Import transactions from CSV |
+| `GET /import/formats` | List supported import formats |
+| `GET /portfolio/history` | Portfolio value history for charts |
 
 ## Database Tables
 
 - `holdings` - Stock positions (symbol, exchange, quantity, avg_price)
 - `transactions` - Buy/sell history
 - `price_history` - Historical price data
+- `current_price_cache` - Fast-access price cache for instant page loads
 - `exchange_rates` - Currency conversion rates
 - `portfolio_snapshots` - Daily portfolio value snapshots
 
@@ -101,26 +111,43 @@ portfolio-tracker/
 
 **Complete:**
 - Holdings CRUD with soft delete
-- Transaction history with cost basis calculation
-- Real-time prices via yfinance (15-min cache)
-- Portfolio analytics (summary, allocation, performance)
+- Transaction history with FIFO cost basis calculation
+- Real-time prices via yfinance (15-min cache + DB cache)
+- Portfolio analytics (summary, allocation, performance, realized gains, recommendations)
 - Multi-currency support (CAD, USD, INR)
 - Responsive dashboard UI
+- Portfolio value history chart with snapshots
+- Import from TD Direct Investing (CSV)
+- Import from Wealthsimple (CSV)
+- Request deduplication for faster cold starts
+- News page with AI insights
+- **Account type tracking** (TFSA, RRSP, FHSA, Non-Registered, etc.)
 
 **In Progress:**
-- Portfolio value history chart
-- Snapshot service integration
+- AI features expansion
 
-**Planned:**
-- Import from brokers (TD Direct, Wealthsimple, Zerodha)
-- AI features (news summarization, portfolio health check)
+**Planned (Upcoming):**
+- Dividend tracking and income reporting
+- DRIP (Dividend Reinvestment) support
+- Tax reporting (capital gains, dividend summaries by year)
+- Zerodha/ICICI Direct import support
 - Export to CSV/PDF
 
 ## Known Issues
 
 1. Yahoo Finance rate limits - 15-min cache helps, wait if 429 errors occur
-2. Transaction history may need investigation
-3. Portfolio history chart component exists but data pipeline incomplete
+2. Import only supports BUY/SELL transactions - dividends (DIV, TXPDDV) are skipped (planned feature)
+
+## Import Support
+
+| Platform | Supported | Transaction Types |
+|----------|-----------|-------------------|
+| TD Direct Investing | ✅ | BUY, SELL |
+| Wealthsimple | ✅ | BUY, SELL |
+| Zerodha | ❌ Planned | - |
+| ICICI Direct | ❌ Planned | - |
+
+**Note:** Dividend transactions (DIV, TXPDDV, etc.) are currently skipped. Dividend tracking is a planned feature.
 
 ## Documentation
 

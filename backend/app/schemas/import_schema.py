@@ -80,6 +80,7 @@ class ImportResult(BaseModel):
     holdings_created: int
     holdings_updated: int
     duplicates_skipped: int
+    account_types_updated: int = 0
     errors: List[str] = []
     warnings: List[str] = []
 

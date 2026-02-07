@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import Card, { EmptyState } from '../components/common/Card';
+import api from '../services/api';
 
 // Icons
 const SparklesIcon = ({ className }) => (
@@ -7,15 +9,46 @@ const SparklesIcon = ({ className }) => (
   </svg>
 );
 
-const NewspaperIcon = ({ className }) => (
+const TrendingUpIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
   </svg>
 );
 
-const ChartBarIcon = ({ className }) => (
+const TrendingDownIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+  </svg>
+);
+
+const AlertTriangleIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+);
+
+const PieChartIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+  </svg>
+);
+
+const GlobeIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const RefreshIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
   </svg>
 );
 
@@ -25,79 +58,339 @@ const LightBulbIcon = ({ className }) => (
   </svg>
 );
 
-const features = [
-  {
-    icon: NewspaperIcon,
-    title: 'News Summaries',
-    description: 'AI-generated summaries of the latest news affecting your holdings.',
+const getIcon = (iconName, className) => {
+  switch (iconName) {
+    case 'trending-up':
+      return <TrendingUpIcon className={className} />;
+    case 'trending-down':
+      return <TrendingDownIcon className={className} />;
+    case 'alert-triangle':
+      return <AlertTriangleIcon className={className} />;
+    case 'pie-chart':
+      return <PieChartIcon className={className} />;
+    case 'globe':
+      return <GlobeIcon className={className} />;
+    default:
+      return <SparklesIcon className={className} />;
+  }
+};
+
+const severityColors = {
+  high: {
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    icon: 'text-red-500',
+    badge: 'bg-red-100 text-red-700'
   },
-  {
-    icon: ChartBarIcon,
-    title: 'Portfolio Health Check',
-    description: 'Analyze your portfolio concentration and diversification.',
+  medium: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    icon: 'text-amber-500',
+    badge: 'bg-amber-100 text-amber-700'
   },
-  {
-    icon: LightBulbIcon,
-    title: 'Rebalancing Suggestions',
-    description: 'Get recommendations for optimizing your portfolio allocation.',
-  },
-];
+  low: {
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    icon: 'text-blue-500',
+    badge: 'bg-blue-100 text-blue-700'
+  }
+};
+
+const typeLabels = {
+  take_profit: '🎯 Take Profit',
+  review: '🔍 Review',
+  rebalance: '⚖️ Rebalance',
+  watch: '👀 Watch'
+};
+
+function HealthScore({ score, grade }) {
+  const getGradeColor = () => {
+    if (score >= 90) return 'text-green-500';
+    if (score >= 80) return 'text-emerald-500';
+    if (score >= 70) return 'text-yellow-500';
+    if (score >= 60) return 'text-orange-500';
+    return 'text-red-500';
+  };
+
+  const getGradeBg = () => {
+    if (score >= 90) return 'from-green-500 to-emerald-500';
+    if (score >= 80) return 'from-emerald-500 to-teal-500';
+    if (score >= 70) return 'from-yellow-500 to-amber-500';
+    if (score >= 60) return 'from-orange-500 to-red-400';
+    return 'from-red-500 to-red-600';
+  };
+
+  return (
+    <div className="flex items-center gap-6">
+      <div className="relative">
+        <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${getGradeBg()} flex items-center justify-center shadow-lg`}>
+          <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center">
+            <span className={`text-3xl font-bold ${getGradeColor()}`}>{grade}</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div className="text-sm text-secondary-500 mb-1">Portfolio Health</div>
+        <div className="text-2xl font-bold text-secondary-900">{score}/100</div>
+        <div className="text-sm text-secondary-500 mt-1">
+          {score >= 90 ? 'Excellent shape!' :
+           score >= 80 ? 'Looking good' :
+           score >= 70 ? 'Some attention needed' :
+           score >= 60 ? 'Review recommended' :
+           'Needs attention'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecommendationCard({ recommendation }) {
+  const colors = severityColors[recommendation.severity] || severityColors.low;
+  
+  return (
+    <div className={`${colors.bg} ${colors.border} border rounded-xl p-4 hover:shadow-md transition-shadow`}>
+      <div className="flex items-start gap-3">
+        <div className={`p-2 rounded-lg bg-white ${colors.icon}`}>
+          {getIcon(recommendation.icon, 'w-5 h-5')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}>
+              {typeLabels[recommendation.type]}
+            </span>
+            {recommendation.symbol && (
+              <span className="text-sm font-semibold text-secondary-900">
+                {recommendation.symbol}
+              </span>
+            )}
+          </div>
+          <h4 className="font-medium text-secondary-900 mb-1">
+            {recommendation.title}
+          </h4>
+          <p className="text-sm text-secondary-600">
+            {recommendation.description}
+          </p>
+          {recommendation.metric !== undefined && (
+            <div className="mt-2 text-sm">
+              <span className="text-secondary-500">{recommendation.metric_label}: </span>
+              <span className={`font-semibold ${
+                recommendation.metric >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {recommendation.metric >= 0 ? '+' : ''}{recommendation.metric.toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InsightCard({ insight }) {
+  return (
+    <div className="bg-gradient-to-br from-primary-50 to-accent-50 border border-primary-100 rounded-xl p-4">
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-white text-primary-500">
+          <LightBulbIcon className="w-5 h-5" />
+        </div>
+        <div>
+          <h4 className="font-medium text-secondary-900 mb-1">{insight.title}</h4>
+          <p className="text-sm text-secondary-600">{insight.content}</p>
+          {insight.generated_at && (
+            <p className="text-xs text-secondary-400 mt-2">
+              Generated {new Date(insight.generated_at).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryBadges({ summary }) {
+  const badges = [
+    { key: 'take_profit', label: 'Take Profit', emoji: '🎯', color: 'bg-green-100 text-green-700' },
+    { key: 'review', label: 'Review', emoji: '🔍', color: 'bg-red-100 text-red-700' },
+    { key: 'rebalance', label: 'Rebalance', emoji: '⚖️', color: 'bg-amber-100 text-amber-700' },
+    { key: 'watch', label: 'Watch', emoji: '👀', color: 'bg-blue-100 text-blue-700' },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {badges.map(({ key, label, emoji, color }) => (
+        summary[key] > 0 && (
+          <span key={key} className={`px-3 py-1 rounded-full text-sm font-medium ${color}`}>
+            {emoji} {summary[key]} {label}
+          </span>
+        )
+      ))}
+    </div>
+  );
+}
 
 export default function News() {
+  const [recommendations, setRecommendations] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchData = async (useLive = false) => {
+    try {
+      if (useLive) setRefreshing(true);
+      else setLoading(true);
+      
+      const fastParam = useLive ? 'false' : 'true';
+      const [recsResponse, insightsResponse] = await Promise.all([
+        api.get(`/analytics/recommendations?fast=${fastParam}`),
+        api.get('/analytics/insights').catch(() => ({ data: { insights: [] } }))
+      ]);
+      
+      setRecommendations(recsResponse.data);
+      setInsights(insightsResponse.data);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch recommendations:', err);
+      setError('Failed to load recommendations');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    // Load cached data first (instant), then auto-refresh with live
+    fetchData(false).then(() => {
+      fetchData(true);
+    });
+  }, []);
+
+  const handleRefresh = () => {
+    fetchData(true); // Always fetch live on manual refresh
+  };
+
+  if (loading) {
+    return (
+      <div className="container-app py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">News & Insights</h1>
+          <p className="text-secondary-500 mt-1">AI-powered analysis for your portfolio</p>
+        </div>
+        <Card className="animate-pulse">
+          <div className="p-8 space-y-4">
+            <div className="h-8 bg-secondary-200 rounded w-1/3"></div>
+            <div className="h-4 bg-secondary-200 rounded w-2/3"></div>
+            <div className="h-4 bg-secondary-200 rounded w-1/2"></div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-app py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">News & Insights</h1>
+        </div>
+        <Card>
+          <EmptyState
+            icon={AlertTriangleIcon}
+            title="Failed to load"
+            description={error}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  const hasRecommendations = recommendations?.recommendations?.length > 0;
+  const hasInsights = insights?.insights?.length > 0;
+
   return (
     <div className="container-app py-6 sm:py-8">
       {/* Page Header */}
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">News & Insights</h1>
-        <p className="text-secondary-500 mt-1">AI-powered analysis for your portfolio</p>
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-secondary-900">News & Insights</h1>
+          <p className="text-secondary-500 mt-1">AI-powered analysis for your portfolio</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="p-2 rounded-lg hover:bg-secondary-100 transition-colors disabled:opacity-50"
+          title="Refresh recommendations"
+        >
+          <RefreshIcon className={`w-5 h-5 text-secondary-600 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      {/* Coming Soon Card */}
-      <Card className="overflow-hidden">
-        <div className="relative">
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-accent-50 opacity-50" />
-
-          {/* Content */}
-          <div className="relative py-12 px-6 text-center">
-            {/* Icon */}
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-500 to-accent-500 rounded-2xl mb-6">
-              <SparklesIcon className="w-10 h-10 text-white" />
-            </div>
-
-            {/* Title & Description */}
-            <h2 className="text-2xl font-bold text-secondary-900 mb-3">
-              AI Features Coming Soon
-            </h2>
-            <p className="text-secondary-600 max-w-lg mx-auto mb-8">
-              We're building intelligent features to help you make better investment decisions.
-              Stay tuned for AI-powered insights about your portfolio.
-            </p>
-
-            {/* Feature Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-              {features.map((feature, index) => (
-                <div
-                  key={index}
-                  className="bg-white/80 backdrop-blur-sm rounded-xl p-5 border border-secondary-100 hover:border-primary-200 hover:shadow-soft transition-all duration-200"
-                >
-                  <div className="inline-flex items-center justify-center w-10 h-10 bg-primary-100 rounded-lg mb-3">
-                    <feature.icon className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <h3 className="font-semibold text-secondary-900 mb-1">{feature.title}</h3>
-                  <p className="text-sm text-secondary-500">{feature.description}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Phase indicator */}
-            <div className="mt-10 inline-flex items-center gap-2 px-4 py-2 bg-secondary-100 rounded-full text-sm text-secondary-600">
-              <span className="w-2 h-2 bg-warning-500 rounded-full animate-pulse" />
-              Planned for Phase 4
-            </div>
+      {/* Health Score & Summary */}
+      <Card className="mb-6">
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <HealthScore 
+              score={recommendations?.health_score || 100} 
+              grade={recommendations?.health_grade || 'A'} 
+            />
+            {recommendations?.summary && (
+              <SummaryBadges summary={recommendations.summary} />
+            )}
           </div>
         </div>
       </Card>
+
+      {/* AI Insights */}
+      {hasInsights && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-secondary-900 mb-3 flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 text-primary-500" />
+            AI Insights
+          </h2>
+          <div className="space-y-3">
+            {insights.insights.map((insight, index) => (
+              <InsightCard key={index} insight={insight} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      <div>
+        <h2 className="text-lg font-semibold text-secondary-900 mb-3">
+          Recommendations
+        </h2>
+        
+        {hasRecommendations ? (
+          <div className="grid gap-3">
+            {recommendations.recommendations.map((rec, index) => (
+              <RecommendationCard key={index} recommendation={rec} />
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="p-8 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                <CheckCircleIcon className="w-8 h-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-secondary-900 mb-2">
+                All Good! 🎉
+              </h3>
+              <p className="text-secondary-500 max-w-md mx-auto">
+                Your portfolio looks well-balanced. No immediate actions recommended.
+                Keep monitoring and stay the course.
+              </p>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Last Updated */}
+      {recommendations?.generated_at && (
+        <p className="text-xs text-secondary-400 mt-4 text-center">
+          Last updated: {new Date(recommendations.generated_at).toLocaleString()}
+        </p>
+      )}
     </div>
   );
 }

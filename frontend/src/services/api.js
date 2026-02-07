@@ -16,6 +16,7 @@ export const holdingsAPI = {
   create: (data) => api.post('/holdings/', data),
   update: (id, data) => api.put(`/holdings/${id}`, data),
   delete: (id) => api.delete(`/holdings/${id}`),
+  getAccountTypes: () => api.get('/holdings/account-types'),
 };
 
 // Transactions API
@@ -29,6 +30,7 @@ export const transactionsAPI = {
 // Prices API
 export const pricesAPI = {
   getCurrent: () => api.get('/prices/current'),
+  getCached: () => api.get('/prices/cached'),  // Instant response from DB cache
   getBySymbol: (symbol, exchange) => api.get(`/prices/${symbol}`, { params: { exchange } }),
   getHistory: (symbol, exchange, days = 30) => api.get(`/prices/history/${symbol}`, { params: { exchange, days } }),
   refresh: () => api.post('/prices/refresh'),
@@ -36,11 +38,13 @@ export const pricesAPI = {
 
 // Analytics API
 export const analyticsAPI = {
-  getPortfolioSummary: () => api.get('/analytics/portfolio/summary'),
-  getAllocation: () => api.get('/analytics/allocation'),
-  getPerformance: () => api.get('/analytics/performance'),
+  // Fast versions use cached prices for instant response
+  getPortfolioSummary: (fast = false) => api.get('/analytics/portfolio/summary', { params: { fast } }),
+  getAllocation: (fast = false) => api.get('/analytics/allocation', { params: { fast } }),
+  getPerformance: (fast = false) => api.get('/analytics/performance', { params: { fast } }),
   getPortfolioValue: (days = 30) => api.get('/analytics/portfolio-value', { params: { days } }),
   getRealizedGains: () => api.get('/analytics/realized-gains'),
+  getAccountBreakdown: (fast = true) => api.get('/analytics/account-breakdown', { params: { fast } }),
 };
 
 // Snapshots API

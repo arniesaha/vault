@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCreateHolding } from '../../hooks/useHoldings';
+import { useCreateHolding, useAccountTypes } from '../../hooks/useHoldings';
 import Input from '../common/Input';
 import Select from '../common/Select';
 import Button from '../common/Button';
@@ -7,6 +7,9 @@ import { COUNTRIES, EXCHANGES, CURRENCIES } from '../../utils/constants';
 
 export default function AddHoldingForm({ onSuccess, onCancel }) {
   const createHolding = useCreateHolding();
+  const { data: accountTypesData } = useAccountTypes();
+  const accountTypes = accountTypesData?.account_types || [];
+
   const [formData, setFormData] = useState({
     symbol: '',
     company_name: '',
@@ -15,6 +18,7 @@ export default function AddHoldingForm({ onSuccess, onCancel }) {
     quantity: '',
     avg_purchase_price: '',
     currency: 'CAD',
+    account_type: '',
     first_purchase_date: '',
     notes: '',
   });
@@ -108,6 +112,28 @@ export default function AddHoldingForm({ onSuccess, onCancel }) {
         options={CURRENCIES}
         required
       />
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Account Type
+        </label>
+        <select
+          name="account_type"
+          value={formData.account_type}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">-- Select Account (Optional) --</option>
+          {accountTypes.map((type) => (
+            <option key={type.code} value={type.code}>
+              {type.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500 mt-1">
+          TFSA, RRSP, FHSA, or Non-Registered account
+        </p>
+      </div>
 
       <Input
         label="First Purchase Date"
