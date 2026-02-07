@@ -103,9 +103,18 @@ class SnapshotService:
         value_by_country = {}
         holdings_with_value = 0
 
+        # For today's date, use current holdings directly (more accurate)
+        # For historical dates, replay transactions
+        is_today = snapshot_date == date.today()
+
         for holding in holdings:
-            # Get historical quantity and cost at the snapshot date
-            quantity, cost = SnapshotService.get_holding_state_at_date(db, holding, snapshot_date)
+            if is_today:
+                # Use current holdings data directly
+                quantity = Decimal(str(holding.quantity))
+                cost = quantity * Decimal(str(holding.avg_purchase_price))
+            else:
+                # Get historical quantity and cost at the snapshot date
+                quantity, cost = SnapshotService.get_holding_state_at_date(db, holding, snapshot_date)
 
             # Skip if no quantity at this date (all shares were sold)
             if quantity <= 0:
