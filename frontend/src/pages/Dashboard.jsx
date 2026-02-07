@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EmptyState } from '../components/common/Card';
 import LoadingSpinner, { SkeletonCard, SkeletonChart } from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
@@ -6,7 +7,9 @@ import AllocationCharts from '../components/dashboard/AllocationCharts';
 import AccountBreakdownChart from '../components/dashboard/AccountBreakdownChart';
 import TopHoldings from '../components/dashboard/TopHoldings';
 import PortfolioValueChart from '../components/dashboard/PortfolioValueChart';
-import { usePortfolioSummary, useAllocation, usePerformance, useRefreshPrices, useAppStatus, useRealizedGains } from '../hooks/usePortfolio';
+import RegionFilter from '../components/dashboard/RegionFilter';
+import CurrencyToggle from '../components/dashboard/CurrencyToggle';
+import { usePortfolioSummary, useAllocation, usePerformance, useRefreshPrices, useAppStatus, useRealizedGains, useExchangeRates } from '../hooks/usePortfolio';
 import { Link } from 'react-router-dom';
 import Button from '../components/common/Button';
 
@@ -96,6 +99,9 @@ function InitializingState() {
 }
 
 export default function Dashboard() {
+  const [region, setRegion] = useState('all');
+  const [displayCurrency, setDisplayCurrency] = useState('CAD');
+  
   const {
     data: summary,
     isLoading: summaryLoading,
@@ -105,22 +111,26 @@ export default function Dashboard() {
     failureCount,
     refetch,
     source: summarySource,
-  } = usePortfolioSummary();
+  } = usePortfolioSummary(region);
   
   const { 
     data: allocation, 
     isLoading: allocationLoading,
     isRefreshing: allocationRefreshing,
-  } = useAllocation();
+  } = useAllocation(region);
   
   const { 
     data: performance, 
     isLoading: performanceLoading 
   } = usePerformance();
   
-  const { data: realizedGains, isLoading: realizedGainsLoading } = useRealizedGains();
+  const { data: realizedGains, isLoading: realizedGainsLoading } = useRealizedGains(region);
   const refreshPrices = useRefreshPrices();
   const { data: appStatus } = useAppStatus();
+  const { data: exchangeRatesData } = useExchangeRates('CAD');
+  
+  // Extract rates from API response
+  const exchangeRates = exchangeRatesData?.rates;
 
   // Check if any data is refreshing in background
   const isRefreshing = summaryRefreshing || allocationRefreshing;
@@ -163,10 +173,18 @@ export default function Dashboard() {
           <p className="text-secondary-500 mt-1">Overview of your investment portfolio</p>
         </div>
         
-        {/* Price source indicator */}
-        {hasHoldings && (
-          <SourceBadge source={summarySource} isRefreshing={isRefreshing} />
-        )}
+        <div className="flex items-center gap-3">
+          {/* Region Filter */}
+          <RegionFilter value={region} onChange={setRegion} />
+          
+          {/* Currency Toggle */}
+          <CurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} rates={exchangeRates} />
+          
+          {/* Price source indicator */}
+          {hasHoldings && (
+            <SourceBadge source={summarySource} isRefreshing={isRefreshing} />
+          )}
+        </div>
       </div>
 
       {!hasHoldings ? (
@@ -189,7 +207,9 @@ export default function Dashboard() {
             <SummaryCards 
               summary={summary} 
               realizedGains={realizedGains} 
-              isLoading={summaryLoading || realizedGainsLoading} 
+              isLoading={summaryLoading || realizedGainsLoading}
+              displayCurrency={displayCurrency}
+              exchangeRates={exchangeRates}
             />
           </section>
 

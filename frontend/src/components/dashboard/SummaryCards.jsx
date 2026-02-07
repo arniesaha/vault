@@ -1,5 +1,6 @@
-import { formatCurrency, formatPercent } from '../../utils/formatters';
+import { formatPercent } from '../../utils/formatters';
 import { SkeletonCard } from '../common/LoadingSpinner';
+import { formatCurrencyWithConversion } from './CurrencyToggle';
 
 // Icons for each stat card
 const WalletIcon = ({ className }) => (
@@ -80,7 +81,7 @@ function StatCard({ title, value, subtitle, trend, icon: Icon, iconBgColor, icon
   );
 }
 
-export default function SummaryCards({ summary, realizedGains, isLoading }) {
+export default function SummaryCards({ summary, realizedGains, isLoading, displayCurrency = 'CAD', exchangeRates }) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -101,7 +102,7 @@ export default function SummaryCards({ summary, realizedGains, isLoading }) {
   const cards = [
     {
       title: 'Total Portfolio Value',
-      value: formatCurrency(summary.total_value_cad, 'CAD'),
+      value: formatCurrencyWithConversion(summary.total_value_cad, displayCurrency, exchangeRates),
       subtitle: `${summary.holdings_count} holding${summary.holdings_count !== 1 ? 's' : ''}`,
       icon: WalletIcon,
       iconBgColor: 'bg-primary-100',
@@ -109,7 +110,7 @@ export default function SummaryCards({ summary, realizedGains, isLoading }) {
     },
     {
       title: 'Unrealized Gain/Loss',
-      value: formatCurrency(summary.unrealized_gain_cad, 'CAD'),
+      value: formatCurrencyWithConversion(summary.unrealized_gain_cad, displayCurrency, exchangeRates),
       subtitle: formatPercent(summary.unrealized_gain_pct),
       trend: summary.unrealized_gain_pct,
       icon: TrendUpIcon,
@@ -118,7 +119,7 @@ export default function SummaryCards({ summary, realizedGains, isLoading }) {
     },
     {
       title: 'Realized Gain/Loss',
-      value: formatCurrency(realizedGainValue, 'CAD'),
+      value: formatCurrencyWithConversion(realizedGainValue, displayCurrency, exchangeRates),
       subtitle: hasRealizedGains
         ? `${realizedGains.transactions_count} sale${realizedGains.transactions_count !== 1 ? 's' : ''}`
         : 'No sales yet',
@@ -129,7 +130,7 @@ export default function SummaryCards({ summary, realizedGains, isLoading }) {
     },
     {
       title: "Today's Change",
-      value: formatCurrency(summary.today_change_cad, 'CAD'),
+      value: formatCurrencyWithConversion(summary.today_change_cad, displayCurrency, exchangeRates),
       subtitle: formatPercent(summary.today_change_pct),
       trend: summary.today_change_pct,
       icon: CalendarIcon,

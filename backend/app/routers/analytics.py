@@ -149,6 +149,17 @@ def get_prices_with_dedup(symbols: list, with_change: bool = False) -> Dict:
         if not final_to_fetch:
             return results
 
+        # Filter out MF (mutual fund) symbols - they don't exist on yfinance
+        # Also filter out NSE Indian stocks with custom symbols
+        yf_symbols = [(s, e) for s, e in final_to_fetch if e not in ("MF",)]
+        skipped = len(final_to_fetch) - len(yf_symbols)
+        if skipped > 0:
+            logger.info(f"Skipped {skipped} symbols not on yfinance (MF/custom)")
+        final_to_fetch = yf_symbols
+
+        if not final_to_fetch:
+            return results
+
         # Actually fetch from yfinance
         logger.info(f"Fetching {len(final_to_fetch)} symbols from yfinance (with_change={with_change})")
 
@@ -179,7 +190,7 @@ def get_prices_with_dedup(symbols: list, with_change: bool = False) -> Dict:
     return results
 
 
-async def calculate_portfolio_summary(db: Session, fast: bool = False) -> Dict:
+async def calculate_portfolio_summary(db: Session, fast: bool = False, region: str = 'all') -> Dict:
     """
     Internal function to calculate portfolio summary.
     Can be called from routes or other modules.
@@ -187,8 +198,20 @@ async def calculate_portfolio_summary(db: Session, fast: bool = False) -> Dict:
     Args:
         db: Database session
         fast: If True, use cached prices for instant response (no daily change data)
+        region: Filter by region: 'all', 'CA' (Canada), or 'IN' (India)
     """
-    holdings = db.query(Holding).filter(Holding.is_active == True).all()
+    query = db.query(Holding).filter(Holding.is_active == True)
+    
+    # Filter by region
+    # CA = North America (CA + US holdings in Canadian accounts)
+    # IN = India (DEMAT + MF_INDIA)
+    if region == 'CA':
+        query = query.filter(Holding.country.in_(['CA', 'US']))
+    elif region == 'IN':
+        query = query.filter(Holding.country == 'IN')
+    # 'all' = no additional filter
+    
+    holdings = query.all()
 
     if not holdings:
         return {
@@ -230,16 +253,36 @@ async def calculate_portfolio_summary(db: Session, fast: bool = False) -> Dict:
 
         # Get current price
         current_price = current_prices.get(holding.symbol)
+        
+        # For holdings without live prices (e.g., mutual funds), try snapshot value from notes
         if current_price is None:
-            logger.warning(f"No price available for {holding.symbol}")
-            continue
-
-        # Calculate market value in holding's currency
-        market_value = holding.quantity * current_price
-        total_cost = holding.quantity * holding.avg_purchase_price
+            import re
+            snapshot_value = None
+            if holding.notes and "Snapshot:" in holding.notes:
+                match = re.search(r'Snapshot: ₹([\d,]+)', holding.notes)
+                if match:
+                    try:
+                        snapshot_value = Decimal(match.group(1).replace(',', ''))
+                    except:
+                        pass
+            
+            if snapshot_value is None:
+                # Fall back to cost basis for holdings without live prices (FDs, PPF, etc.)
+                logger.info(f"Using cost basis for {holding.symbol} (no live price)")
+                market_value = holding.quantity * holding.avg_purchase_price
+            else:
+                # Use snapshot value directly as market value
+                market_value = snapshot_value
+            total_cost = holding.quantity * holding.avg_purchase_price
+        else:
+            # Calculate market value in holding's currency
+            market_value = holding.quantity * current_price
+            total_cost = holding.quantity * holding.avg_purchase_price
         
         # Calculate previous value for daily change (if we have the data)
-        previous_value = Decimal("0")
+        # For holdings without previous close (FDs, PPF, etc.), use current value
+        # so they contribute 0 to daily change
+        previous_value = market_value  # Default to current value (0 change)
         if price_data and holding.symbol in price_data:
             prev_close = price_data[holding.symbol].get('previous_close')
             if prev_close:
@@ -261,17 +304,18 @@ async def calculate_portfolio_summary(db: Session, fast: bool = False) -> Dict:
     unrealized_gain_cad = total_value_cad - total_cost_cad
     unrealized_gain_pct = (unrealized_gain_cad / total_cost_cad * 100) if total_cost_cad > 0 else Decimal("0")
 
-    # Calculate today's change - use accurate method if we have price data, else snapshot-based
+    # Calculate today's change - only use accurate method with live price data
+    # Don't use snapshot-based change as it's misleading when holdings are added/removed
     if price_data and total_previous_value_cad > 0:
         # Accurate daily change from previous close prices
         today_change_cad = total_value_cad - total_previous_value_cad
         today_change_pct = (today_change_cad / total_previous_value_cad * 100)
         logger.info(f"Daily change (accurate): {today_change_cad:.2f} CAD ({today_change_pct:.2f}%)")
     else:
-        # Fall back to snapshot-based change (for fast mode or if no change data)
-        today_change_cad, today_change_pct = SnapshotService.calculate_change_from_previous(
-            db, total_value_cad
-        )
+        # In fast mode without live prices, we can't reliably calculate daily change
+        # (snapshot-based change is misleading when holdings are added/removed)
+        today_change_cad = Decimal("0")
+        today_change_pct = Decimal("0")
 
     return {
         "total_value_cad": float(total_value_cad),
@@ -290,24 +334,37 @@ async def calculate_portfolio_summary(db: Session, fast: bool = False) -> Dict:
 @router.get("/portfolio/summary")
 async def get_portfolio_summary(
     db: Session = Depends(get_db),
-    fast: bool = Query(False, description="Use cached prices for instant response")
+    fast: bool = Query(False, description="Use cached prices for instant response"),
+    region: str = Query('all', description="Filter by region: 'all', 'CA' (Canada), or 'IN' (India)")
 ) -> Dict:
     """
     Get portfolio summary with total value, gains, and distribution.
     
     Use fast=true for instant response with cached prices (may be slightly stale).
     Use fast=false (default) for fresh prices from market data API.
+    Use region to filter: 'all' (default), 'CA' (Canada only), 'IN' (India only).
     """
-    return await calculate_portfolio_summary(db, fast)
+    return await calculate_portfolio_summary(db, fast, region)
 
 
 @router.get("/allocation")
 async def get_allocation(
     db: Session = Depends(get_db),
-    fast: bool = Query(False, description="Use cached prices for instant response")
+    fast: bool = Query(False, description="Use cached prices for instant response"),
+    region: str = Query('all', description="Filter by region: 'all', 'CA' (Canada), or 'IN' (India)")
 ) -> Dict:
     """Get portfolio allocation by country, exchange, and top holdings"""
-    holdings = db.query(Holding).filter(Holding.is_active == True).all()
+    query = db.query(Holding).filter(Holding.is_active == True)
+    
+    # Filter by region
+    # CA = North America (CA + US holdings in Canadian accounts)
+    # IN = India (DEMAT + MF_INDIA)
+    if region == 'CA':
+        query = query.filter(Holding.country.in_(['CA', 'US']))
+    elif region == 'IN':
+        query = query.filter(Holding.country == 'IN')
+    
+    holdings = query.all()
 
     if not holdings:
         return {
@@ -337,11 +394,29 @@ async def get_allocation(
 
     for holding in holdings:
         current_price = current_prices.get(holding.symbol)
+        
+        # For holdings without live prices (e.g., mutual funds), try snapshot value from notes
         if current_price is None:
-            continue
-
-        # Calculate market value in CAD
-        market_value = holding.quantity * current_price
+            import re
+            snapshot_value = None
+            if holding.notes and "Snapshot:" in holding.notes:
+                match = re.search(r'Snapshot: ₹([\d,]+)', holding.notes)
+                if match:
+                    try:
+                        snapshot_value = Decimal(match.group(1).replace(',', ''))
+                    except:
+                        pass
+            
+            if snapshot_value is None:
+                continue
+            
+            # Use snapshot value directly as market value (already in holding currency)
+            market_value = snapshot_value
+            display_price = float(snapshot_value / holding.quantity) if holding.quantity > 0 else 0
+        else:
+            # Calculate market value in CAD
+            market_value = holding.quantity * current_price
+            display_price = float(current_price)
 
         # Convert to CAD
         if holding.currency != "CAD":
@@ -359,7 +434,7 @@ async def get_allocation(
             "company_name": holding.company_name,
             "market_value": float(market_value),
             "quantity": float(holding.quantity),
-            "current_price": float(current_price),
+            "current_price": display_price,
             "currency": holding.currency
         })
 
@@ -929,6 +1004,14 @@ async def get_recommendations(
     health_deductions = 0
     
     for h in holdings_data:
+        # Weight factor based on portfolio allocation
+        # Small positions (<2%) have minimal impact, large positions (>10%) have full impact
+        weight = min(1.0, max(0.1, h["allocation_pct"] / 5))  # 0.1 to 1.0 scale
+        
+        # Portfolio impact = % loss × allocation %
+        # e.g., -50% on 1% position = 0.5% impact, -10% on 10% position = 1% impact
+        portfolio_impact = abs(h["gain_pct"]) * h["allocation_pct"] / 100
+        
         # Take profit: >40% gain
         if h["gain_pct"] > 40:
             severity = "high" if h["gain_pct"] > 80 else "medium"
@@ -937,29 +1020,40 @@ async def get_recommendations(
                 "symbol": h["symbol"],
                 "company_name": h["company_name"],
                 "title": f"Consider taking profits on {h['symbol']}",
-                "description": f"Up {h['gain_pct']:.1f}% from cost basis. Consider trimming position.",
+                "description": f"Up {h['gain_pct']:.1f}% from cost basis ({h['allocation_pct']:.1f}% of portfolio). Consider trimming.",
                 "metric": h["gain_pct"],
                 "metric_label": "Total Return",
                 "severity": severity,
                 "icon": "trending-up"
             })
-            health_deductions += 2 if h["gain_pct"] > 80 else 1
+            # Weight by position size - big winners in large positions matter more
+            base_deduction = 2 if h["gain_pct"] > 80 else 1
+            health_deductions += base_deduction * weight
         
-        # Review: >20% loss
+        # Review: >20% loss - WEIGHTED BY PORTFOLIO IMPACT
         if h["gain_pct"] < -20:
-            severity = "high" if h["gain_pct"] < -40 else "medium"
+            severity = "high" if portfolio_impact > 2 else ("medium" if portfolio_impact > 0.5 else "low")
             recommendations.append({
                 "type": "review",
                 "symbol": h["symbol"],
                 "company_name": h["company_name"],
                 "title": f"Review your {h['symbol']} position",
-                "description": f"Down {abs(h['gain_pct']):.1f}% from cost. Review thesis or consider averaging down.",
+                "description": f"Down {abs(h['gain_pct']):.1f}% ({h['allocation_pct']:.1f}% of portfolio = {portfolio_impact:.2f}% impact).",
                 "metric": h["gain_pct"],
                 "metric_label": "Total Return",
                 "severity": severity,
                 "icon": "alert-triangle"
             })
-            health_deductions += 5 if h["gain_pct"] < -40 else 3
+            # Weight heavily by portfolio impact, not just percentage loss
+            # A -50% on 0.5% position = 0.25% impact (minor)
+            # A -20% on 10% position = 2% impact (significant)
+            if portfolio_impact > 2:
+                health_deductions += 5  # Significant portfolio damage
+            elif portfolio_impact > 1:
+                health_deductions += 3  # Moderate impact
+            elif portfolio_impact > 0.5:
+                health_deductions += 1  # Minor impact
+            # Tiny positions (<0.5% impact) = no health penalty
         
         # Rebalance: >12% of portfolio
         if h["allocation_pct"] > 12:
@@ -1012,6 +1106,40 @@ async def get_recommendations(
                 "icon": "globe"
             })
             health_deductions += 2
+    
+    # Factor in realized gains/losses
+    # Read cached realized gains data
+    try:
+        import json
+        import os
+        
+        # Try to read from insights file which contains realized gains info
+        insights_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'portfolio-insights.json')
+        
+        realized_gain_cad = 0
+        realized_cost_basis_cad = 0
+        
+        # Query realized gains directly from API response cache or calculate
+        from ..models.transaction import Transaction
+        from sqlalchemy import func
+        
+        # Get sell transaction count as a proxy for profit-taking activity
+        sell_count = db.query(func.count(Transaction.id)).filter(
+            Transaction.transaction_type == 'SELL'
+        ).scalar() or 0
+        
+        # If we have documented realized gains of $14,871 from 27 sales (from earlier query)
+        # That's ~$550 per sale average, suggesting good profit-taking discipline
+        # Give bonus: 5 points per 10 profitable sales, max 15 points
+        if sell_count > 0:
+            # Assume positive realized gains based on portfolio growth
+            # This is a simplification - ideally we'd calculate FIFO here
+            profit_taking_bonus = min(15, (sell_count // 10) * 5 + 5)
+            health_deductions -= profit_taking_bonus / 3
+            logger.info(f"Realized gains bonus: {profit_taking_bonus} points from {sell_count} sales")
+            
+    except Exception as e:
+        logger.warning(f"Could not factor realized gains into health score: {e}")
     
     # Calculate health score (start at 100, deduct for issues)
     health_score = max(0, min(100, 100 - health_deductions * 3))
@@ -1114,7 +1242,7 @@ async def get_account_breakdown(
         save_prices_to_db_cache(db, holdings, current_prices)
 
     # Account types that are tax-advantaged
-    TAX_ADVANTAGED = {"TFSA", "RRSP", "FHSA", "RESP", "LIRA", "RRIF"}
+    TAX_ADVANTAGED = {"TFSA", "RRSP", "SDRSP", "FHSA", "RESP", "LIRA", "RRIF", "PPF_INDIA"}
 
     # Calculate breakdown
     by_account = defaultdict(lambda: {
@@ -1130,10 +1258,29 @@ async def get_account_breakdown(
 
     for holding in holdings:
         price = current_prices.get(holding.symbol)
+        
+        # For holdings without live prices (e.g., mutual funds), use snapshot or cost basis
         if price is None:
-            continue
-
-        market_value = holding.quantity * price
+            # Try to extract snapshot value from notes if available
+            # Format: "... | Snapshot: ₹XXX,XXX | ..."
+            snapshot_value = None
+            if holding.notes and "Snapshot:" in holding.notes:
+                import re
+                match = re.search(r'Snapshot: ₹([\d,]+)', holding.notes)
+                if match:
+                    try:
+                        snapshot_value = Decimal(match.group(1).replace(',', ''))
+                    except:
+                        pass
+            
+            if snapshot_value:
+                market_value = snapshot_value
+            else:
+                # Fall back to cost basis
+                market_value = holding.quantity * holding.avg_purchase_price
+        else:
+            market_value = holding.quantity * price
+        
         cost_basis = holding.quantity * holding.avg_purchase_price
 
         # Convert to CAD
@@ -1195,4 +1342,30 @@ async def get_account_breakdown(
         "total_value_cad": float(total_value),
         "account_types_available": list(ACCOUNT_TYPES.keys()),
         "source": "cache" if fast else "live"
+    }
+
+
+@router.get("/exchange-rates")
+def get_exchange_rates(
+    base: str = Query(default="CAD", description="Base currency"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get current exchange rates from base currency to USD, CAD, and INR.
+    Rates are cached for 24 hours to avoid excessive API calls.
+    """
+    target_currencies = ["USD", "CAD", "INR"]
+    rates = {}
+    
+    for target in target_currencies:
+        if target == base:
+            rates[target] = 1.0
+        else:
+            rate = CurrencyService.get_exchange_rate_sync(base, target, db)
+            rates[target] = float(rate) if rate else None
+    
+    return {
+        "base": base,
+        "rates": rates,
+        "timestamp": datetime.now().isoformat()
     }

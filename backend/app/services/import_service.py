@@ -491,49 +491,32 @@ class ImportService:
         # Sort transactions by date (oldest first) for proper cost basis calculation
         transactions.sort(key=lambda t: t.date)
 
-        # Group transactions by symbol to create/update holdings
-        holdings_map = {}  # symbol -> holding
+        # Group transactions by (symbol, account_type) to create/update holdings
+        # This allows same symbol in multiple accounts (e.g., XEQT in both TFSA and FHSA)
+        holdings_map = {}  # (symbol, account_type) -> holding
 
-        # Get existing holdings
-        existing_holdings = {h.symbol: h for h in db.query(Holding).all()}
-
-        # Track which holdings have had their account_type updated
-        account_types_updated = set()
+        # Get existing holdings keyed by (symbol, account_type)
+        existing_holdings = {(h.symbol, h.account_type): h for h in db.query(Holding).all()}
 
         for t in transactions:
+            holding_key = (t.symbol, t.account_type)
+
             # Check for duplicates
             if skip_duplicates and t.dedup_key in existing_dedup_keys:
                 duplicates_skipped += 1
-
-                # Even for duplicates, update account_type if provided and different
-                if t.account_type and t.symbol in existing_holdings:
-                    holding = existing_holdings[t.symbol]
-                    if holding.account_type != t.account_type and t.symbol not in account_types_updated:
-                        old_type = holding.account_type or "UNASSIGNED"
-                        holding.account_type = t.account_type
-                        account_types_updated.add(t.symbol)
-                        warnings.append(f"Updated {t.symbol} account type: {old_type} → {t.account_type}")
-
                 continue
 
             try:
-                # Get or create holding
-                if t.symbol not in holdings_map:
-                    if t.symbol in existing_holdings:
-                        holding = existing_holdings[t.symbol]
+                # Get or create holding for this (symbol, account_type) pair
+                if holding_key not in holdings_map:
+                    if holding_key in existing_holdings:
+                        holding = existing_holdings[holding_key]
                         # Reactivate if needed
                         if not holding.is_active:
                             holding.is_active = True
                             holdings_updated += 1
 
-                        # Update account_type if provided and different
-                        if t.account_type and holding.account_type != t.account_type and t.symbol not in account_types_updated:
-                            old_type = holding.account_type or "UNASSIGNED"
-                            holding.account_type = t.account_type
-                            account_types_updated.add(t.symbol)
-                            warnings.append(f"Updated {t.symbol} account type: {old_type} → {t.account_type}")
-
-                        holdings_map[t.symbol] = holding
+                        holdings_map[holding_key] = holding
                     else:
                         # Create new holding with zero quantity (will be updated by transaction)
                         holding = Holding(
@@ -550,11 +533,11 @@ class ImportService:
                         )
                         db.add(holding)
                         db.flush()  # Get ID
-                        holdings_map[t.symbol] = holding
-                        existing_holdings[t.symbol] = holding
+                        holdings_map[holding_key] = holding
+                        existing_holdings[holding_key] = holding
                         holdings_created += 1
 
-                holding = holdings_map[t.symbol]
+                holding = holdings_map[holding_key]
 
                 # Update holding quantities and avg cost
                 if t.transaction_type == "BUY":
@@ -621,7 +604,7 @@ class ImportService:
             holdings_created=holdings_created,
             holdings_updated=holdings_updated,
             duplicates_skipped=duplicates_skipped,
-            account_types_updated=len(account_types_updated),
+            account_types_updated=0,  # No longer needed with per-account holdings
             errors=errors,
             warnings=warnings,
         )

@@ -48,6 +48,10 @@ const ACCOUNT_STYLES = {
   RRIF: 'bg-sky-100 text-sky-700',
   NON_REG: 'bg-red-100 text-red-700',
   MARGIN: 'bg-orange-100 text-orange-700',
+  DEMAT: 'bg-teal-100 text-teal-700',
+  MF_INDIA: 'bg-violet-100 text-violet-700',
+  NRO: 'bg-pink-100 text-pink-700',
+  NRE: 'bg-rose-100 text-rose-700',
 };
 
 const ACCOUNT_NAMES = {
@@ -59,6 +63,10 @@ const ACCOUNT_NAMES = {
   RRIF: 'RRIF',
   NON_REG: 'Non-Reg',
   MARGIN: 'Margin',
+  DEMAT: 'DEMAT',
+  MF_INDIA: 'MF India',
+  NRO: 'NRO',
+  NRE: 'NRE',
 };
 
 export default function HoldingsTable({ holdings, onEdit, onDelete }) {

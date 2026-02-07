@@ -59,12 +59,17 @@ frontend/dist/
 # Database
 # =============================================================================
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 data/*.db
+data/*.db-*
 
-# Transaction statements (sensitive)
+# Transaction statements & imports (sensitive)
 transactions/
+*_parsed.json
+import_transactions*.py
 
 # =============================================================================
 # IDE & Editors

@@ -1,100 +1,156 @@
-# Portfolio Tracker
+# portfolio-tracker
 
-Personal web application to track stock investments across Canadian (TSX, TSX-V), US (NASDAQ, NYSE), and Indian (NSE, BSE) markets.
+A multi-market investment portfolio tracker with real-time prices, currency conversion, and comprehensive analytics. Supports stocks from Canadian (TSX), US (NYSE/NASDAQ), and Indian (NSE/BSE) markets, plus mutual funds and fixed deposits.
 
 ## Features
 
-- **Multi-Market Support**: Track stocks from TSX, NYSE, NASDAQ, NSE, BSE
-- **Real-Time Prices**: Live updates via Yahoo Finance with 15-min caching
-- **Transaction History**: Record BUY/SELL with automatic cost basis calculation
-- **Portfolio Analytics**: Value tracking, gains/losses, allocation charts
-- **Multi-Currency**: Automatic conversion between CAD, USD, INR
+- **Multi-Market Support** — Track stocks from TSX, NYSE, NASDAQ, NSE, and BSE
+- **Real-Time Prices** — Live price updates via Yahoo Finance with smart caching
+- **Currency Conversion** — Automatic CAD/USD/INR conversion with live exchange rates
+- **Account Types** — TFSA, RRSP, FHSA, DEMAT, NRO, and more with tax-advantaged tracking
+- **Portfolio Analytics** — Geographic allocation, exchange breakdown, unrealized/realized gains
+- **Import Support** — Import from Kite (Zerodha), Groww, and TD Direct CSV exports
+- **Daily Snapshots** — Track portfolio value history over time
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      React Frontend                             │
+│              (Vite + TailwindCSS + Recharts)                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      FastAPI Backend                            │
+│                    (Python + SQLAlchemy)                        │
+└─────────────────────────────────────────────────────────────────┘
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+│    SQLite     │    │ Yahoo Finance │    │ Exchange Rate │
+│  (holdings)   │    │   (prices)    │    │     API       │
+└───────────────┘    └───────────────┘    └───────────────┘
+```
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Docker (optional, for containerized deployment)
+
+### Local Development
+
+1. Clone and set up backend:
 
 ```bash
 git clone https://github.com/arniesaha/portfolio-tracker.git
-cd portfolio-tracker
-docker compose up -d --build
-```
+cd portfolio-tracker/backend
 
-Open http://localhost:5173
-
-### Option 2: Local Development
-
-**Backend:**
-```bash
-cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
 pip install -r requirements.txt
+
 uvicorn app.main:app --reload
 ```
 
-**Frontend:**
+2. Set up frontend:
+
 ```bash
-cd frontend
+cd ../frontend
 npm install
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- API Docs: http://localhost:8000/docs
+3. Open http://localhost:5173
 
-## Tech Stack
+### Docker Deployment
 
-| Layer | Technology |
-|-------|------------|
-| Backend | FastAPI, SQLAlchemy, SQLite |
-| Frontend | React 18, Vite, TailwindCSS, Recharts |
-| Data | yfinance, exchangerate-api.com |
+```bash
+# Build images
+docker build -t portfolio-backend:latest -f backend/Dockerfile backend/
+docker build -t portfolio-frontend:latest -f frontend/Dockerfile frontend/
 
-## Project Structure
-
+# Run with compose (create your own docker-compose.yml)
+docker compose up -d
 ```
-portfolio-tracker/
-├── backend/           # FastAPI application
-│   ├── app/
-│   │   ├── models/    # SQLAlchemy models
-│   │   ├── routers/   # API endpoints
-│   │   ├── schemas/   # Pydantic schemas
-│   │   └── services/  # Business logic
-│   └── requirements.txt
-├── frontend/          # React application
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── hooks/
-│   │   └── services/
-│   └── package.json
-├── docs/              # Documentation
-├── docker-compose.yml
-└── data/              # SQLite database
-```
-
-## Documentation
-
-- [Quick Start Guide](docs/QUICKSTART.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Project Specifications](docs/PROJECT.md)
 
 ## API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/v1/holdings` | List all holdings |
-| `POST /api/v1/holdings` | Create holding |
-| `GET /api/v1/transactions` | List transactions |
-| `POST /api/v1/transactions` | Record transaction |
-| `GET /api/v1/portfolio/summary` | Portfolio overview |
-| `GET /api/v1/analytics/allocation` | Allocation breakdown |
-| `POST /api/v1/prices/refresh` | Refresh all prices |
+### Holdings
 
-Full API documentation available at http://localhost:8000/docs when running.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/holdings/` | List all holdings |
+| POST | `/api/v1/holdings/` | Create a holding |
+| PUT | `/api/v1/holdings/{id}` | Update a holding |
+| DELETE | `/api/v1/holdings/{id}` | Delete a holding |
+
+### Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/analytics/portfolio/summary` | Portfolio summary with gains |
+| GET | `/api/v1/analytics/allocation` | Geographic and exchange allocation |
+| GET | `/api/v1/analytics/account-breakdown` | Breakdown by account type |
+| GET | `/api/v1/analytics/realized-gains` | Realized gains from sales |
+| GET | `/api/v1/analytics/exchange-rates` | Current exchange rates |
+
+### Imports
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/import/kite` | Import Kite (Zerodha) xlsx |
+| POST | `/api/v1/import/groww` | Import Groww mutual fund xlsx |
+| POST | `/api/v1/import/upload/preview` | Preview CSV import |
+
+## Supported Account Types
+
+| Type | Tax Status | Description |
+|------|------------|-------------|
+| TFSA | Tax-Free | Tax-Free Savings Account (Canada) |
+| RRSP | Tax-Deferred | Registered Retirement Savings Plan |
+| FHSA | Tax-Free | First Home Savings Account |
+| DEMAT | Taxable | Indian stock demat account |
+| MF_INDIA | Taxable | Indian mutual funds |
+| FD_INDIA | Taxable | Indian fixed deposits |
+| PPF_INDIA | Tax-Free | Public Provident Fund |
+| NON_REG | Taxable | Non-registered/taxable account |
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Backend
+DATABASE_URL=sqlite:///./data/portfolio.db
+ALLOWED_ORIGINS=http://localhost:5173,http://your-domain.com
+
+# Frontend
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+```
+
+## Tech Stack
+
+**Backend:**
+- FastAPI
+- SQLAlchemy
+- yfinance (Yahoo Finance API)
+- pandas (data processing)
+
+**Frontend:**
+- React 18
+- Vite
+- TailwindCSS
+- Recharts (charts)
+- React Query (data fetching)
 
 ## License
 
-Personal project. All rights reserved.
+MIT
+
+## Author
+
+[Arnab Saha](https://github.com/arniesaha)

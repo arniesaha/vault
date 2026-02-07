@@ -18,7 +18,7 @@ class AccountType(str, Enum):
 
 
 class HoldingBase(BaseModel):
-    symbol: str = Field(..., max_length=20)
+    symbol: str = Field(..., max_length=50)
     company_name: Optional[str] = Field(None, max_length=200)
     exchange: str = Field(..., max_length=20)
     country: str = Field(..., max_length=2)
@@ -26,6 +26,7 @@ class HoldingBase(BaseModel):
     avg_purchase_price: Decimal = Field(..., gt=0, decimal_places=4)
     currency: str = Field(default="CAD", max_length=3)
     account_type: Optional[str] = Field(None, max_length=20, description="Account type: TFSA, RRSP, FHSA, NON_REG, etc.")
+    account_id: Optional[str] = Field(None, max_length=50, description="Account identifier: 71XW74U, HQ8BRWQ48CAD, etc.")
     first_purchase_date: Optional[date] = None
     notes: Optional[str] = None
 
@@ -39,6 +40,7 @@ class HoldingUpdate(BaseModel):
     quantity: Optional[Decimal] = Field(None, gt=0, decimal_places=4)
     avg_purchase_price: Optional[Decimal] = Field(None, gt=0, decimal_places=4)
     account_type: Optional[str] = Field(None, max_length=20)
+    account_id: Optional[str] = Field(None, max_length=50)
     first_purchase_date: Optional[date] = None
     notes: Optional[str] = None
 
@@ -47,6 +49,7 @@ class HoldingResponse(HoldingBase):
     id: int
     is_active: bool
     account_type: Optional[str] = None
+    account_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

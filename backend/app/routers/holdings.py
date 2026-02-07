@@ -27,6 +27,7 @@ def get_holdings(
     country: Optional[str] = Query(None, description="Filter by country code (CA, US, IN)"),
     exchange: Optional[str] = Query(None, description="Filter by exchange (TSX, NYSE, etc.)"),
     account_type: Optional[str] = Query(None, description="Filter by account type (TFSA, RRSP, FHSA, NON_REG)"),
+    account_id: Optional[str] = Query(None, description="Filter by account ID (71XW74U, HQ8BRWQ48CAD, etc.)"),
     db: Session = Depends(get_db)
 ):
     """Get all active holdings with optional filters"""
@@ -38,6 +39,8 @@ def get_holdings(
         query = query.filter(Holding.exchange == exchange)
     if account_type:
         query = query.filter(Holding.account_type == account_type)
+    if account_id:
+        query = query.filter(Holding.account_id == account_id)
 
     holdings = query.offset(skip).limit(limit).all()
     return holdings
@@ -63,17 +66,17 @@ def get_holding(holding_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=HoldingResponse, status_code=status.HTTP_201_CREATED)
 def create_holding(holding: HoldingCreate, db: Session = Depends(get_db)):
     """Create a new holding"""
-    # Check if holding with same symbol already exists
+    # Check if holding with same symbol and account_id already exists
     existing = db.query(Holding).filter(
         Holding.symbol == holding.symbol,
-        Holding.exchange == holding.exchange,
+        Holding.account_id == holding.account_id,
         Holding.is_active == True
     ).first()
 
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Holding for {holding.symbol} on {holding.exchange} already exists"
+            detail=f"Holding for {holding.symbol} in account {holding.account_id} already exists"
         )
 
     db_holding = Holding(**holding.model_dump())

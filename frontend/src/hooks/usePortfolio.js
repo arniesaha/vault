@@ -33,25 +33,26 @@ export const useAppStatus = (options = {}) => {
  * Portfolio Summary with progressive loading:
  * 1. Instantly shows cached data (fast=true)
  * 2. Automatically refreshes with live data in background
+ * @param {string} region - Filter by region: 'all', 'CA', or 'IN'
  */
-export const usePortfolioSummary = () => {
+export const usePortfolioSummary = (region = 'all') => {
   const queryClient = useQueryClient();
   
   // Main query - fetches live data
   const liveQuery = useQuery({
-    queryKey: ['portfolio', 'summary', 'live'],
-    queryFn: () => analyticsAPI.getPortfolioSummary(false).then(res => res.data),
+    queryKey: ['portfolio', 'summary', 'live', region],
+    queryFn: () => analyticsAPI.getPortfolioSummary(false, region).then(res => res.data),
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(2000 * (attemptIndex + 1), 10000),
     // Don't show loading state if we have cached data
-    placeholderData: () => queryClient.getQueryData(['portfolio', 'summary', 'cached']),
+    placeholderData: () => queryClient.getQueryData(['portfolio', 'summary', 'cached', region]),
   });
 
   // Fast query - fetches cached data for instant display
   const cachedQuery = useQuery({
-    queryKey: ['portfolio', 'summary', 'cached'],
-    queryFn: () => analyticsAPI.getPortfolioSummary(true).then(res => res.data),
+    queryKey: ['portfolio', 'summary', 'cached', region],
+    queryFn: () => analyticsAPI.getPortfolioSummary(true, region).then(res => res.data),
     staleTime: Infinity, // Cache forever, we'll manually invalidate
     retry: 1,
   });
@@ -75,21 +76,22 @@ export const usePortfolioSummary = () => {
 
 /**
  * Allocation with progressive loading
+ * @param {string} region - Filter by region: 'all', 'CA', or 'IN'
  */
-export const useAllocation = () => {
+export const useAllocation = (region = 'all') => {
   const queryClient = useQueryClient();
   
   const liveQuery = useQuery({
-    queryKey: ['portfolio', 'allocation', 'live'],
-    queryFn: () => analyticsAPI.getAllocation(false).then(res => res.data),
+    queryKey: ['portfolio', 'allocation', 'live', region],
+    queryFn: () => analyticsAPI.getAllocation(false, region).then(res => res.data),
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(2000 * (attemptIndex + 1), 10000),
-    placeholderData: () => queryClient.getQueryData(['portfolio', 'allocation', 'cached']),
+    placeholderData: () => queryClient.getQueryData(['portfolio', 'allocation', 'cached', region]),
   });
 
   const cachedQuery = useQuery({
-    queryKey: ['portfolio', 'allocation', 'cached'],
-    queryFn: () => analyticsAPI.getAllocation(true).then(res => res.data),
+    queryKey: ['portfolio', 'allocation', 'cached', region],
+    queryFn: () => analyticsAPI.getAllocation(true, region).then(res => res.data),
     staleTime: Infinity,
     retry: 1,
   });
@@ -135,10 +137,10 @@ export const usePerformance = () => {
   };
 };
 
-export const useRealizedGains = () => {
+export const useRealizedGains = (region = 'all') => {
   return useQuery({
-    queryKey: ['portfolio', 'realizedGains'],
-    queryFn: () => analyticsAPI.getRealizedGains().then(res => res.data),
+    queryKey: ['portfolio', 'realizedGains', region],
+    queryFn: () => analyticsAPI.getRealizedGains(region).then(res => res.data),
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(2000 * (attemptIndex + 1), 10000),
   });
@@ -183,5 +185,16 @@ export const useRefreshPrices = () => {
       queryClient.invalidateQueries({ queryKey: ['prices'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     },
+  });
+};
+
+// Exchange rates hook - cached for 1 hour
+export const useExchangeRates = (base = 'CAD') => {
+  return useQuery({
+    queryKey: ['exchangeRates', base],
+    queryFn: () => analyticsAPI.getExchangeRates(base).then(res => res.data),
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    retry: 2,
   });
 };

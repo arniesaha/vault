@@ -145,16 +145,16 @@ export default function AllocationCharts({ allocation, isLoading }) {
         subtitle="Distribution by country"
         isEmpty={countryData.length === 0}
       >
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
+        <ResponsiveContainer width="100%" height={320}>
+          <PieChart margin={{ top: 10, right: 0, bottom: 0, left: 0 }}>
             <Pie
               data={countryData}
               cx="50%"
-              cy="45%"
+              cy="40%"
               labelLine={false}
               label={renderCustomizedLabel}
-              outerRadius={100}
-              innerRadius={40}
+              outerRadius={90}
+              innerRadius={35}
               fill="#8884d8"
               dataKey="value"
               paddingAngle={2}
@@ -180,16 +180,16 @@ export default function AllocationCharts({ allocation, isLoading }) {
         subtitle="Distribution by stock exchange"
         isEmpty={exchangeData.length === 0}
       >
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
+        <ResponsiveContainer width="100%" height={320}>
+          <PieChart margin={{ top: 10, right: 0, bottom: 0, left: 0 }}>
             <Pie
               data={exchangeData}
               cx="50%"
-              cy="45%"
+              cy="40%"
               labelLine={false}
               label={renderCustomizedLabel}
-              outerRadius={100}
-              innerRadius={40}
+              outerRadius={90}
+              innerRadius={35}
               fill="#8884d8"
               dataKey="value"
               paddingAngle={2}

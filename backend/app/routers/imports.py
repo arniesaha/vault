@@ -4,6 +4,8 @@ Import router for handling CSV file imports from various brokers.
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import BaseModel
+from decimal import Decimal
 
 from ..database import get_db
 from ..schemas.import_schema import (
@@ -15,6 +17,24 @@ from ..schemas.import_schema import (
     SupportedFormat,
 )
 from ..services.import_service import ImportService
+from ..services.kite_import_service import KiteImportService
+from ..models.holding import Holding
+
+
+class KiteImportRequest(BaseModel):
+    """Request for Kite (Zerodha) import."""
+    file_contents: List[str]  # Base64 encoded xlsx files
+    account_type: str = "DEMAT"
+
+
+class KiteImportResult(BaseModel):
+    """Result of Kite import."""
+    success: bool
+    holdings_created: int
+    holdings_updated: int
+    total_holdings: int
+    warnings: List[str]
+    holdings: List[dict]
 
 router = APIRouter(prefix="/import", tags=["import"])
 
@@ -251,3 +271,345 @@ async def upload_bulk_import(
             total_result.success = False
 
     return total_result
+
+
+@router.post("/kite", response_model=KiteImportResult)
+def import_kite_holdings(
+    request: KiteImportRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Import holdings from Kite (Zerodha) AGTS xlsx files.
+    
+    Aggregates buy/sell across multiple annual statement files
+    to calculate current holdings with average cost basis.
+    """
+    try:
+        # Decode all files
+        file_bytes = [KiteImportService.decode_base64(f) for f in request.file_contents]
+        
+        # Parse and aggregate holdings
+        holdings, warnings = KiteImportService.parse_multiple_files(file_bytes)
+        
+        if not holdings:
+            return KiteImportResult(
+                success=False,
+                holdings_created=0,
+                holdings_updated=0,
+                total_holdings=0,
+                warnings=warnings or ["No holdings found in files"],
+                holdings=[],
+            )
+        
+        created = 0
+        updated = 0
+        result_holdings = []
+        
+        for h in holdings:
+            # Check if holding exists
+            existing = db.query(Holding).filter(
+                Holding.symbol == h.symbol,
+                Holding.account_type == request.account_type
+            ).first()
+            
+            if existing:
+                # Update existing
+                existing.quantity = h.quantity
+                existing.avg_purchase_price = h.avg_cost
+                existing.exchange = h.exchange
+                existing.is_active = True
+                updated += 1
+            else:
+                # Create new holding
+                new_holding = Holding(
+                    symbol=h.symbol,
+                    company_name=h.symbol,  # Will be enriched later
+                    exchange=h.exchange,
+                    country="IN",
+                    quantity=h.quantity,
+                    avg_purchase_price=h.avg_cost,
+                    currency="INR",
+                    account_type=request.account_type,
+                    is_active=True,
+                )
+                db.add(new_holding)
+                created += 1
+            
+            result_holdings.append({
+                "symbol": h.symbol,
+                "exchange": h.exchange,
+                "quantity": float(h.quantity),
+                "avg_cost": float(h.avg_cost),
+                "total_invested": float(h.total_buy_value - h.total_sell_value + (h.quantity * h.avg_cost) - h.total_buy_value + (h.total_sell_qty * h.avg_cost)),
+            })
+        
+        db.commit()
+        
+        return KiteImportResult(
+            success=True,
+            holdings_created=created,
+            holdings_updated=updated,
+            total_holdings=len(holdings),
+            warnings=warnings,
+            holdings=result_holdings,
+        )
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Kite import error: {str(e)}"
+        )
+
+
+@router.post("/kite/upload", response_model=KiteImportResult)
+async def upload_kite_files(
+    files: List[UploadFile] = File(...),
+    account_type: str = Form("DEMAT"),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload Kite AGTS xlsx files and import holdings.
+    
+    Accepts multiple xlsx files, aggregates them, and creates holdings.
+    """
+    # Validate file types
+    for file in files:
+        if not file.filename.endswith('.xlsx'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Only xlsx files are supported. Got: {file.filename}"
+            )
+    
+    try:
+        # Read all files
+        file_bytes = []
+        for file in files:
+            content = await file.read()
+            file_bytes.append(content)
+        
+        # Parse and aggregate holdings
+        holdings, warnings = KiteImportService.parse_multiple_files(file_bytes)
+        
+        if not holdings:
+            return KiteImportResult(
+                success=False,
+                holdings_created=0,
+                holdings_updated=0,
+                total_holdings=0,
+                warnings=warnings or ["No holdings found in files"],
+                holdings=[],
+            )
+        
+        created = 0
+        updated = 0
+        result_holdings = []
+        
+        for h in holdings:
+            # Check if holding exists
+            existing = db.query(Holding).filter(
+                Holding.symbol == h.symbol,
+                Holding.account_type == account_type
+            ).first()
+            
+            if existing:
+                existing.quantity = h.quantity
+                existing.avg_purchase_price = h.avg_cost
+                existing.exchange = h.exchange
+                existing.is_active = True
+                updated += 1
+            else:
+                new_holding = Holding(
+                    symbol=h.symbol,
+                    company_name=h.symbol,
+                    exchange=h.exchange,
+                    country="IN",
+                    quantity=h.quantity,
+                    avg_purchase_price=h.avg_cost,
+                    currency="INR",
+                    account_type=account_type,
+                    is_active=True,
+                )
+                db.add(new_holding)
+                created += 1
+            
+            # Calculate invested value (remaining cost basis)
+            invested = float(h.quantity * h.avg_cost)
+            result_holdings.append({
+                "symbol": h.symbol,
+                "exchange": h.exchange,
+                "quantity": float(h.quantity),
+                "avg_cost": float(h.avg_cost),
+                "invested_value": invested,
+            })
+        
+        db.commit()
+        
+        return KiteImportResult(
+            success=True,
+            holdings_created=created,
+            holdings_updated=updated,
+            total_holdings=len(holdings),
+            warnings=warnings,
+            holdings=result_holdings,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Kite import error: {str(e)}"
+        )
+
+
+# Groww Mutual Funds Import
+
+class GrowwImportRequest(BaseModel):
+    """Request for Groww mutual fund import."""
+    file_content: str  # Base64 encoded xlsx file
+    account_type: str = "MF_INDIA"
+
+
+class GrowwImportResult(BaseModel):
+    """Result of Groww import."""
+    success: bool
+    holdings_created: int
+    holdings_updated: int
+    total_holdings: int
+    total_invested: float
+    total_current: float
+    total_returns: float
+    total_returns_pct: float
+    warnings: List[str]
+    holdings: List[dict]
+
+
+@router.post("/groww", response_model=GrowwImportResult)
+def import_groww_holdings(
+    request: GrowwImportRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Import mutual fund holdings from Groww portfolio export.
+    
+    Parses the xlsx file and creates holdings for each fund.
+    Uses generated symbols based on AMC and fund name.
+    """
+    from ..services.groww_import_service import GrowwImportService
+    
+    try:
+        # Decode file
+        file_bytes = GrowwImportService.decode_base64(request.file_content)
+        
+        # Parse holdings
+        holdings, warnings = GrowwImportService.parse_xlsx_content(file_bytes)
+        
+        if not holdings:
+            return GrowwImportResult(
+                success=False,
+                holdings_created=0,
+                holdings_updated=0,
+                total_holdings=0,
+                total_invested=0,
+                total_current=0,
+                total_returns=0,
+                total_returns_pct=0,
+                warnings=warnings or ["No holdings found in file"],
+                holdings=[],
+            )
+        
+        created = 0
+        updated = 0
+        result_holdings = []
+        total_invested = Decimal("0")
+        total_current = Decimal("0")
+        total_returns = Decimal("0")
+        
+        for h in holdings:
+            # Generate symbol (include folio to distinguish same fund in different accounts)
+            symbol = GrowwImportService.generate_symbol(h.scheme_name, h.amc, h.folio_no)
+            
+            # Calculate avg price (NAV at purchase)
+            avg_nav = h.invested_value / h.units if h.units > 0 else Decimal("0")
+            
+            # Check if holding exists
+            existing = db.query(Holding).filter(
+                Holding.symbol == symbol,
+                Holding.account_type == request.account_type
+            ).first()
+            
+            # Calculate P&L percentage
+            pnl_pct = (h.returns / h.invested_value * 100) if h.invested_value > 0 else Decimal("0")
+            
+            # Store snapshot values in notes for reference
+            notes = (
+                f"Folio: {h.folio_no} | {h.category}/{h.sub_category} | "
+                f"Snapshot: ₹{float(h.current_value):,.0f} | XIRR: {h.xirr}"
+            )
+            
+            if existing:
+                existing.quantity = h.units
+                existing.avg_purchase_price = avg_nav.quantize(Decimal("0.0001"))
+                existing.company_name = h.scheme_name
+                existing.is_active = True
+                existing.notes = notes
+                updated += 1
+            else:
+                new_holding = Holding(
+                    symbol=symbol,
+                    company_name=h.scheme_name,
+                    exchange="MF",  # Mutual Fund
+                    country="IN",
+                    quantity=h.units,
+                    avg_purchase_price=avg_nav.quantize(Decimal("0.0001")),
+                    currency="INR",
+                    account_type=request.account_type,
+                    is_active=True,
+                    notes=notes,
+                )
+                db.add(new_holding)
+                created += 1
+            
+            total_invested += h.invested_value
+            total_current += h.current_value
+            total_returns += h.returns
+            
+            result_holdings.append({
+                "symbol": symbol,
+                "scheme_name": h.scheme_name,
+                "amc": h.amc,
+                "category": h.category,
+                "units": float(h.units),
+                "invested_value": float(h.invested_value),
+                "current_value": float(h.current_value),
+                "returns": float(h.returns),
+                "returns_pct": float(pnl_pct),
+                "xirr": h.xirr,
+            })
+        
+        db.commit()
+        
+        # Calculate total returns percentage
+        total_returns_pct = (total_returns / total_invested * 100) if total_invested > 0 else 0
+        
+        return GrowwImportResult(
+            success=True,
+            holdings_created=created,
+            holdings_updated=updated,
+            total_holdings=len(holdings),
+            total_invested=float(total_invested),
+            total_current=float(total_current),
+            total_returns=float(total_returns),
+            total_returns_pct=float(total_returns_pct),
+            warnings=warnings,
+            holdings=result_holdings,
+        )
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Groww import error: {str(e)}"
+        )

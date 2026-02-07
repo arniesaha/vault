@@ -13,6 +13,12 @@ const ACCOUNT_COLORS = {
   RRIF: '#0ea5e9',    // sky (retirement income)
   NON_REG: '#ef4444', // red (taxable)
   MARGIN: '#f97316',  // orange (margin)
+  DEMAT: '#14b8a6',   // teal (Indian stocks)
+  MF_INDIA: '#a855f7', // violet (Indian mutual funds)
+  FD_INDIA: '#7c3aed', // purple-600 (Indian fixed deposits)
+  PPF_INDIA: '#22c55e', // green-500 (Indian PPF - tax-free)
+  NRO: '#ec4899',     // pink (NRO)
+  NRE: '#f43f5e',     // rose (NRE)
   UNASSIGNED: '#9ca3af', // gray (not set)
 };
 
@@ -25,6 +31,12 @@ const ACCOUNT_NAMES = {
   RRIF: 'RRIF',
   NON_REG: 'Non-Registered',
   MARGIN: 'Margin',
+  DEMAT: 'DEMAT',
+  MF_INDIA: 'MF India',
+  FD_INDIA: 'FD India',
+  PPF_INDIA: 'PPF India',
+  NRO: 'NRO',
+  NRE: 'NRE',
   UNASSIGNED: 'Unassigned',
 };
 
@@ -168,7 +180,7 @@ export default function AccountBreakdownChart() {
 
       {/* Tax Summary Bar */}
       <div className="mb-6 p-4 bg-secondary-50 rounded-lg">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 mb-2">
           <span className="text-sm font-medium text-secondary-700">Tax-Advantaged vs Taxable</span>
           <span className="text-sm text-secondary-500">
             {formatPercent(tax_advantaged_pct)} tax-advantaged
@@ -199,16 +211,16 @@ export default function AccountBreakdownChart() {
       </div>
 
       {/* Pie Chart */}
-      <ResponsiveContainer width="100%" height={280}>
-        <PieChart>
+      <ResponsiveContainer width="100%" height={320}>
+        <PieChart margin={{ top: 20, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={chartData}
             cx="50%"
-            cy="45%"
+            cy="42%"
             labelLine={false}
             label={renderCustomizedLabel}
-            outerRadius={90}
-            innerRadius={35}
+            outerRadius={85}
+            innerRadius={32}
             fill="#8884d8"
             dataKey="value_cad"
             nameKey="name"

@@ -39,12 +39,14 @@ export const pricesAPI = {
 // Analytics API
 export const analyticsAPI = {
   // Fast versions use cached prices for instant response
-  getPortfolioSummary: (fast = false) => api.get('/analytics/portfolio/summary', { params: { fast } }),
-  getAllocation: (fast = false) => api.get('/analytics/allocation', { params: { fast } }),
+  // region: 'all', 'CA' (Canada), or 'IN' (India)
+  getPortfolioSummary: (fast = false, region = 'all') => api.get('/analytics/portfolio/summary', { params: { fast, region } }),
+  getAllocation: (fast = false, region = 'all') => api.get('/analytics/allocation', { params: { fast, region } }),
   getPerformance: (fast = false) => api.get('/analytics/performance', { params: { fast } }),
-  getPortfolioValue: (days = 30) => api.get('/analytics/portfolio-value', { params: { days } }),
-  getRealizedGains: () => api.get('/analytics/realized-gains'),
-  getAccountBreakdown: (fast = true) => api.get('/analytics/account-breakdown', { params: { fast } }),
+  getPortfolioValue: (days = 30, region = 'all') => api.get('/analytics/portfolio-value', { params: { days, region } }),
+  getRealizedGains: (region = 'all') => api.get('/analytics/realized-gains', { params: { region } }),
+  getAccountBreakdown: (fast = true, region = 'all') => api.get('/analytics/account-breakdown', { params: { fast, region } }),
+  getExchangeRates: (base = 'CAD') => api.get('/analytics/exchange-rates', { params: { base } }),
 };
 
 // Snapshots API

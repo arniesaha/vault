@@ -93,9 +93,14 @@ class SnapshotService:
 
         # Get holdings that existed at the snapshot date
         # Filter by first_purchase_date to exclude holdings that didn't exist yet
+        # Include holdings with NULL first_purchase_date (e.g., mutual funds without transaction history)
+        from sqlalchemy import or_
         holdings = db.query(Holding).filter(
             Holding.is_active == True,
-            Holding.first_purchase_date <= snapshot_date
+            or_(
+                Holding.first_purchase_date <= snapshot_date,
+                Holding.first_purchase_date == None
+            )
         ).all()
 
         total_value_cad = Decimal('0')
@@ -126,11 +131,28 @@ class SnapshotService:
             price_for_date = PriceService.get_price_for_date(holding.symbol, holding.exchange, snapshot_date, db=db)
 
             if price_for_date is None:
-                logger.warning(f"No price available for {holding.symbol} on {snapshot_date}, skipping")
-                continue
-
-            # Calculate market value using historical quantity
-            market_value = quantity * price_for_date
+                # Try to extract snapshot value from notes (for mutual funds without live prices)
+                # Format: "... | Snapshot: ₹XXX,XXX | ..."
+                snapshot_value = None
+                if holding.notes and "Snapshot:" in holding.notes:
+                    import re
+                    match = re.search(r'Snapshot: ₹([\d,]+)', holding.notes)
+                    if match:
+                        try:
+                            snapshot_value = Decimal(match.group(1).replace(',', ''))
+                            logger.info(f"Using snapshot value from notes for {holding.symbol}: {snapshot_value}")
+                        except:
+                            pass
+                
+                if snapshot_value is None:
+                    logger.warning(f"No price available for {holding.symbol} on {snapshot_date}, skipping")
+                    continue
+                
+                # Use snapshot value directly as market value (already in holding's currency)
+                market_value = snapshot_value
+            else:
+                # Calculate market value using historical quantity and price
+                market_value = quantity * price_for_date
 
             # Convert to CAD
             if holding.currency != 'CAD':

@@ -12,8 +12,8 @@ class ImportPlatform(str, Enum):
     """Supported import platforms."""
     TD_DIRECT = "td_direct"
     WEALTHSIMPLE = "wealthsimple"
-    ZERODHA = "zerodha"
-    ICICI_DIRECT = "icici_direct"
+    KITE = "kite"  # Zerodha Kite - Indian stocks
+    GROWW = "groww"  # Groww - Indian mutual funds
 
 
 class ParsedTransaction(BaseModel):
