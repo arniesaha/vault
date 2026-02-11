@@ -1,6 +1,6 @@
 # 🔒 Vault
 
-**Your Investment Portfolio, Secured.**
+**Your Investment Portfolio, Unified.**
 
 A modern, multi-market investment portfolio tracker with real-time prices, currency conversion, and comprehensive analytics. Track stocks from Canadian (TSX), US (NYSE/NASDAQ), and Indian (NSE/BSE) markets, plus mutual funds and fixed deposits — all in one place.
 
