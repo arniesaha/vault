@@ -1,18 +1,29 @@
-# portfolio-tracker
+# 🔒 Vault
 
-A multi-market investment portfolio tracker with real-time prices, currency conversion, and comprehensive analytics. Supports stocks from Canadian (TSX), US (NYSE/NASDAQ), and Indian (NSE/BSE) markets, plus mutual funds and fixed deposits.
+**Your Investment Portfolio, Secured.**
 
-## Features
+A modern, multi-market investment portfolio tracker with real-time prices, currency conversion, and comprehensive analytics. Track stocks from Canadian (TSX), US (NYSE/NASDAQ), and Indian (NSE/BSE) markets, plus mutual funds and fixed deposits — all in one place.
 
-- **Multi-Market Support** — Track stocks from TSX, NYSE, NASDAQ, NSE, and BSE
-- **Real-Time Prices** — Live price updates via Yahoo Finance with smart caching
-- **Currency Conversion** — Automatic CAD/USD/INR conversion with live exchange rates
-- **Account Types** — TFSA, RRSP, FHSA, DEMAT, NRO, and more with tax-advantaged tracking
-- **Portfolio Analytics** — Geographic allocation, exchange breakdown, unrealized/realized gains
-- **Import Support** — Import from Kite (Zerodha), Groww, and TD Direct CSV exports
-- **Daily Snapshots** — Track portfolio value history over time
+## ✨ Features
 
-## Architecture
+- **🌍 Multi-Market Support** — Track stocks from TSX, NYSE, NASDAQ, NSE, and BSE
+- **📈 Real-Time Prices** — Live price updates via Yahoo Finance with smart caching
+- **💱 Currency Conversion** — Automatic CAD/USD/INR conversion with live exchange rates
+- **🏦 Account Types** — TFSA, RRSP, FHSA, DEMAT, NRO, and more with tax-advantaged tracking
+- **📊 Portfolio Analytics** — Geographic allocation, exchange breakdown, unrealized/realized gains
+- **📥 Import Support** — Import from Kite (Zerodha), Groww, and TD Direct CSV exports
+- **📅 Daily Snapshots** — Track portfolio value history over time
+- **🌙 Dark Mode** — Full dark mode support with Navy/Gold fintech theme
+- **🔐 Privacy Mode** — Hide sensitive numbers with one click
+
+## 🎨 Design
+
+Vault uses a professional fintech design language:
+- **Navy Blue** (#1e3a8a) — Trust & security
+- **Warm Gold** (amber) — Premium accents
+- **IBM Plex Sans** — Industry-standard fintech typography
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -33,7 +44,7 @@ A multi-market investment portfolio tracker with real-time prices, currency conv
 └───────────────┘    └───────────────┘    └───────────────┘
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -46,8 +57,8 @@ A multi-market investment portfolio tracker with real-time prices, currency conv
 1. Clone and set up backend:
 
 ```bash
-git clone https://github.com/arniesaha/portfolio-tracker.git
-cd portfolio-tracker/backend
+git clone https://github.com/arniesaha/vault.git
+cd vault/backend
 
 python -m venv venv
 source venv/bin/activate  # or `venv\Scripts\activate` on Windows
@@ -70,14 +81,14 @@ npm run dev
 
 ```bash
 # Build images
-docker build -t portfolio-backend:latest -f backend/Dockerfile backend/
-docker build -t portfolio-frontend:latest -f frontend/Dockerfile frontend/
+docker build -t vault-backend:latest -f backend/Dockerfile backend/
+docker build -t vault-frontend:latest -f frontend/Dockerfile frontend/
 
-# Run with compose (create your own docker-compose.yml)
+# Run with compose
 docker compose up -d
 ```
 
-## API Endpoints
+## 📡 API Endpoints
 
 ### Holdings
 
@@ -106,7 +117,7 @@ docker compose up -d
 | POST | `/api/v1/import/groww` | Import Groww mutual fund xlsx |
 | POST | `/api/v1/import/upload/preview` | Preview CSV import |
 
-## Supported Account Types
+## 🏦 Supported Account Types
 
 | Type | Tax Status | Description |
 |------|------------|-------------|
@@ -119,7 +130,7 @@ docker compose up -d
 | PPF_INDIA | Tax-Free | Public Provident Fund |
 | NON_REG | Taxable | Non-registered/taxable account |
 
-## Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
@@ -132,7 +143,7 @@ ALLOWED_ORIGINS=http://localhost:5173,http://your-domain.com
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 **Backend:**
 - FastAPI
@@ -147,10 +158,10 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 - Recharts (charts)
 - React Query (data fetching)
 
-## License
+## 📄 License
 
 MIT
 
-## Author
+## 👤 Author
 
 [Arnab Saha](https://github.com/arniesaha)
