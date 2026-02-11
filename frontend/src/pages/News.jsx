@@ -104,6 +104,8 @@ const typeLabels = {
 };
 
 function HealthScore({ score, grade }) {
+  const roundedScore = Math.round(score);
+  
   const getGradeColor = () => {
     if (score >= 90) return 'text-green-500';
     if (score >= 80) return 'text-emerald-500';
@@ -131,7 +133,7 @@ function HealthScore({ score, grade }) {
       </div>
       <div>
         <div className="text-sm text-secondary-500 dark:text-secondary-400 mb-1">Portfolio Health</div>
-        <div className="text-2xl font-bold text-secondary-900 dark:text-secondary-100">{score}/100</div>
+        <div className="text-2xl font-bold text-secondary-900 dark:text-secondary-100">{roundedScore}</div>
         <div className="text-sm text-secondary-500 dark:text-secondary-400 mt-1">
           {score >= 90 ? 'Excellent shape!' :
            score >= 80 ? 'Looking good' :
@@ -228,12 +230,21 @@ function SummaryBadges({ summary }) {
   );
 }
 
+const recommendationTabs = [
+  { key: 'all', label: 'All', emoji: '📋' },
+  { key: 'take_profit', label: 'Take Profit', emoji: '🎯' },
+  { key: 'review', label: 'Review', emoji: '🔍' },
+  { key: 'rebalance', label: 'Rebalance', emoji: '⚖️' },
+  { key: 'watch', label: 'Watch', emoji: '👀' },
+];
+
 export default function News() {
   const [recommendations, setRecommendations] = useState(null);
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
 
   const fetchData = async (useLive = false) => {
     try {
@@ -363,11 +374,49 @@ export default function News() {
         </h2>
         
         {hasRecommendations ? (
-          <div className="grid gap-3">
-            {recommendations.recommendations.map((rec, index) => (
-              <RecommendationCard key={index} recommendation={rec} />
-            ))}
-          </div>
+          <>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+              {recommendationTabs.map(({ key, label, emoji }) => {
+                const count = key === 'all' 
+                  ? recommendations.recommendations.length 
+                  : recommendations.recommendations.filter(r => r.type === key).length;
+                
+                if (key !== 'all' && count === 0) return null;
+                
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      activeTab === key
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-secondary-100 dark:bg-secondary-800 text-secondary-600 dark:text-secondary-400 hover:bg-secondary-200 dark:hover:bg-secondary-700'
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                    <span>{label}</span>
+                    <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
+                      activeTab === key
+                        ? 'bg-white/20 text-white'
+                        : 'bg-secondary-200 dark:bg-secondary-700 text-secondary-500 dark:text-secondary-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filtered Recommendations */}
+            <div className="grid gap-3">
+              {recommendations.recommendations
+                .filter(rec => activeTab === 'all' || rec.type === activeTab)
+                .map((rec, index) => (
+                  <RecommendationCard key={index} recommendation={rec} />
+                ))}
+            </div>
+          </>
         ) : (
           <Card>
             <div className="p-8 text-center">
